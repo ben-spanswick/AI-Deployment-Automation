@@ -1,33 +1,41 @@
-# 🤖 AI Box - Dynamic Multi-GPU Deployment
+# 🤖 AI Box - Modern Multi-GPU AI Stack
 
-> Flexible, automated deployment of a headless AI workstation with support for any number of NVIDIA GPUs. Features LLM chat, image generation, and inference APIs with intelligent GPU assignment.
+> Flexible deployment of LocalAI, Ollama, and Stable Diffusion Forge with dynamic GPU configuration. Run OpenAI-compatible APIs locally with any number of NVIDIA GPUs.
 
 [![Ubuntu](https://img.shields.io/badge/Ubuntu-20.04%20%7C%2022.04-orange)](https://ubuntu.com/)
 [![NVIDIA](https://img.shields.io/badge/NVIDIA-RTX%203090%20%7C%204090%20%7C%20A100-76B900)](https://www.nvidia.com/)
 [![Docker](https://img.shields.io/badge/Docker-24.0+-2496ED)](https://www.docker.com/)
-[![Ansible](https://img.shields.io/badge/Ansible-2.15+-EE0000)](https://www.ansible.com/)
+[![LocalAI](https://img.shields.io/badge/LocalAI-Latest-blue)](https://github.com/go-skynet/LocalAI)
+[![Ollama](https://img.shields.io/badge/Ollama-Latest-black)](https://ollama.ai/)
 
 ## 🎯 Features
 
-- **Dynamic GPU Detection**: Automatically detects and configures any number of NVIDIA GPUs
-- **Flexible GPU Assignment**: Choose automatic distribution or manual GPU assignment per service
-- **Multiple Deployment Methods**: Ansible, Docker Compose, or hybrid deployment
-- **Interactive Setup**: User-friendly setup script with smart defaults
-- **Service Options**:
-  - Text Generation WebUI (Oobabooga) - LLM chat interface
-  - Stable Diffusion WebUI - AI image generation
-  - FastAPI - REST API for programmatic access
-  - GPU Monitoring (optional) - NVIDIA DCGM metrics
-  - Web Dashboard (optional) - Unified access portal
-  - Auto Updates (optional) - Watchtower container updates
+- **Modern AI Stack**:
+  - **LocalAI**: OpenAI-compatible API for local LLM inference
+  - **Ollama**: Easy model management with simple CLI/API
+  - **Stable Diffusion Forge**: Next-gen WebUI with optimized performance
+  - **NVIDIA DCGM**: GPU monitoring and metrics
+
+- **Dynamic GPU Configuration**:
+  - Automatically detects all NVIDIA GPUs
+  - Flexible GPU assignment strategies
+  - Support for 1 to unlimited GPUs
+  - Per-service GPU allocation
+
+- **Deployment Options**:
+  - Interactive setup script
+  - Ansible automation for full system configuration
+  - Docker Compose for container-only deployment
+  - Hybrid deployment modes
 
 ## 📋 Requirements
 
 - **OS**: Ubuntu 20.04 or 22.04 (headless or desktop)
-- **GPU**: One or more NVIDIA GPUs (RTX 3090, 4090, A100, etc.)
+- **GPU**: NVIDIA GPU(s) - RTX 3090, 4090, A100, etc.
 - **RAM**: 32GB+ recommended (16GB minimum)
-- **Storage**: 500GB+ for models and outputs
-- **Network**: SSH access and sudo privileges
+- **Storage**: 500GB+ for models
+- **Docker**: Version 24.0+
+- **NVIDIA Driver**: 535+ (automatically installed)
 
 ## 🚀 Quick Start
 
@@ -38,326 +46,293 @@ git clone http://192.168.100.54:3000/Mandrake/AI-Deployment.git
 cd AI-Deployment
 ```
 
-### 2. Run the Setup Script
+### 2. Run Interactive Setup
 
 ```bash
 chmod +x setup.sh
 ./setup.sh
 ```
 
-The script will:
+The setup will:
 - Detect your GPU configuration
-- Ask for deployment preferences
-- Configure services based on your hardware
-- Deploy the AI Box automatically
+- Let you choose deployment method
+- Configure GPU assignment
+- Set service ports
+- Deploy everything automatically
 
 ### 3. Access Your Services
 
-After deployment, access your services at:
-- **LLM Chat**: `http://your-server:8080`
-- **Image Generation**: `http://your-server:8081`
-- **API Docs**: `http://your-server:8000/docs`
-- **GPU Metrics**: `http://your-server:9400/metrics` (if enabled)
+After deployment:
+- **LocalAI API**: `http://your-server:8080`
+- **Ollama API**: `http://your-server:11434`
+- **Stable Diffusion Forge**: `http://your-server:7860`
+- **GPU Metrics**: `http://your-server:9400/metrics`
 - **Dashboard**: `http://your-server` (if enabled)
 
-## 🔧 Deployment Options
+## 🎮 GPU Assignment Options
 
-### Interactive Setup (Recommended)
-
-The `setup.sh` script provides an interactive experience:
-
-```bash
-./setup.sh
+### 1. All GPUs Mode (Recommended for LLMs)
+All services use all available GPUs - best for large language models:
+```
+LocalAI: GPU 0,1,2,3
+Ollama: GPU 0,1,2,3
+Forge: GPU 0,1,2,3
 ```
 
-You'll be prompted for:
-- Deployment method (Ansible/Docker/Hybrid)
-- Target machine (local/remote)
-- GPU assignment strategy
-- Service ports
-- Optional features
-
-### Manual Deployment
-
-#### Option 1: Ansible (Full System Setup)
-
-```bash
-cd ansible
-# Edit inventory.yml with your configuration
-ansible-playbook -i inventory.yml playbook.yml
+### 2. Automatic Distribution
+Intelligently distributes GPUs based on your hardware:
+```
+2 GPUs:
+  LocalAI: GPU 0
+  Ollama: GPU 1
+  Forge: GPU 0,1
 ```
 
-#### Option 2: Docker Compose Only
-
-```bash
-cd docker
-# Edit .env file with your configuration
-docker compose up -d
+### 3. Manual Assignment
+Specify exactly which GPUs each service uses:
+```
+LocalAI: GPU 0,1
+Ollama: GPU 2,3
+Forge: GPU 0,1,2,3
 ```
 
-#### Option 3: Custom Configuration
+### 4. Single GPU Mode
+All services share one GPU (for testing or limited hardware).
 
-1. Run GPU detection:
-```bash
-./scripts/gpu-detect.sh
-```
+## 🔧 Service Overview
 
-2. Create configuration:
-```bash
-cp docker/.env.example docker/.env
-# Edit docker/.env with your settings
-```
+### LocalAI
+- **Purpose**: OpenAI-compatible API for local inference
+- **Models**: Supports GGUF, GGML, and various formats
+- **API**: Drop-in replacement for OpenAI API
+- **Usage**:
+  ```python
+  import openai
+  openai.api_base = "http://localhost:8080/v1"
+  openai.api_key = "sk-xxx"  # Any value works
+  
+  response = openai.Completion.create(
+      model="gpt-3.5-turbo",
+      prompt="Hello, how are you?"
+  )
+  ```
 
-3. Deploy:
-```bash
-cd docker && docker compose up -d
-```
+### Ollama
+- **Purpose**: Simple model management and serving
+- **Models**: Llama 2, Mistral, Mixtral, etc.
+- **CLI**: Easy model pulling and running
+- **Usage**:
+  ```bash
+  # Pull a model
+  docker exec ollama ollama pull llama2
+  
+  # Run inference
+  curl http://localhost:11434/api/generate -d '{
+    "model": "llama2",
+    "prompt": "Why is the sky blue?"
+  }'
+  ```
 
-## 🎮 GPU Assignment Strategies
+### Stable Diffusion Forge
+- **Purpose**: Advanced image generation
+- **Features**: Optimized performance, ControlNet, LoRA support
+- **API**: Compatible with A1111 API
+- **Usage**:
+  ```python
+  import requests
+  
+  response = requests.post('http://localhost:7860/sdapi/v1/txt2img', json={
+      "prompt": "a beautiful sunset over mountains",
+      "steps": 20,
+      "width": 512,
+      "height": 512
+  })
+  ```
 
-### Automatic Assignment
+## 📊 Management Commands
 
-The setup script can automatically distribute GPUs based on your hardware:
-
-- **1 GPU**: All services share the same GPU
-- **2 GPUs**: 
-  - Text Generation: GPU 0
-  - Stable Diffusion: GPU 1
-  - FastAPI: Access to both
-- **3+ GPUs**: Distributed across services with extras for scaling
-
-### Manual Assignment
-
-Specify exactly which GPUs each service should use:
-
-```bash
-Text Generation GPU(s): 0
-Stable Diffusion GPU(s): 1
-FastAPI GPU(s): 0,1,2,3
-```
-
-### Single GPU Mode
-
-Run all services on a single powerful GPU:
-
-```bash
-Which GPU to use: 0
-```
-
-## 📊 Service Management
-
-### View Service Status
-
-```bash
-docker ps
-docker compose -f /opt/ai-box/docker-compose.yml ps
-```
-
-### View Logs
-
-```bash
-# All services
-cd /opt/ai-box && docker compose logs -f
-
-# Specific service
-docker compose logs -f textgen-webui
-```
-
-### Restart Services
-
+### Docker Compose
 ```bash
 cd /opt/ai-box
+
+# View all services
+docker compose ps
+
+# View logs
+docker compose logs -f [service-name]
+
+# Restart services
 docker compose restart
-docker compose restart textgen-webui  # Single service
-```
 
-### Update Services
-
-```bash
-cd /opt/ai-box
+# Update images
 docker compose pull
 docker compose up -d
 ```
 
-## 🔍 Monitoring & Troubleshooting
+### Model Management
 
-### Check GPU Status
+**LocalAI Models**:
+```bash
+# Place models in /opt/ai-box/models/
+# Supports: GGUF, GGML, GPTQ, etc.
+```
 
+**Ollama Models**:
+```bash
+# List models
+docker exec ollama ollama list
+
+# Pull model
+docker exec ollama ollama pull mistral
+
+# Remove model
+docker exec ollama ollama rm mistral
+```
+
+**Stable Diffusion Models**:
+```bash
+# Place in respective directories:
+/opt/ai-box/models/stable-diffusion/
+/opt/ai-box/models/loras/
+/opt/ai-box/models/vae/
+```
+
+## 🔍 Monitoring
+
+### GPU Status
 ```bash
 # System GPUs
 nvidia-smi
 
-# GPUs in Docker
-docker run --rm --gpus all nvidia/cuda:11.8-base-ubuntu20.04 nvidia-smi
+# Container GPU access
+docker exec localai nvidia-smi
 ```
 
-### Health Checks
-
+### Service Health
 ```bash
-./scripts/health-check.sh
+# Check service endpoints
+curl http://localhost:8080/readyz      # LocalAI
+curl http://localhost:11434/           # Ollama
+curl http://localhost:7860/            # Forge
+curl http://localhost:9400/metrics     # DCGM
 ```
 
-### Common Issues
+### Dashboard
+If enabled, access the web dashboard at `http://your-server/` for:
+- Service status monitoring
+- GPU utilization graphs
+- Quick access to all UIs
+- Real-time metrics
 
-**GPU Not Detected:**
+## 🎯 Common Use Cases
+
+### Running LLMs
 ```bash
-# Check driver
-nvidia-smi
-# Reinstall driver
-sudo apt install nvidia-driver-535
+# With Ollama
+docker exec ollama ollama run llama2:13b
+
+# With LocalAI (OpenAI compatible)
+curl http://localhost:8080/v1/chat/completions \
+  -H "Content-Type: application/json" \
+  -d '{
+    "model": "llama2-13b",
+    "messages": [{"role": "user", "content": "Hello!"}]
+  }'
 ```
 
-**Service Not Starting:**
+### Generating Images
+```python
+# Using Forge API
+import requests
+import base64
+
+response = requests.post('http://localhost:7860/sdapi/v1/txt2img', json={
+    "prompt": "cyberpunk city at night",
+    "negative_prompt": "blurry, low quality",
+    "steps": 30,
+    "sampler_name": "DPM++ 2M Karras",
+    "cfg_scale": 7,
+    "width": 1024,
+    "height": 1024
+})
+
+# Save image
+image_data = response.json()['images'][0]
+with open('output.png', 'wb') as f:
+    f.write(base64.b64decode(image_data))
+```
+
+## 🔧 Troubleshooting
+
+### Services Not Starting
 ```bash
 # Check logs
-docker compose logs textgen-webui
-# Check GPU assignment
-docker compose exec textgen-webui nvidia-smi
+docker compose logs [service-name]
+
+# Verify GPU access
+docker run --rm --gpus all nvidia/cuda:12.0-base nvidia-smi
 ```
 
-**Port Conflicts:**
+### GPU Memory Issues
 ```bash
-# Check ports
-sudo netstat -tulpn | grep -E "(8080|8081|8000)"
-# Change in .env file
+# Check GPU memory usage
+nvidia-smi
+
+# Restart service to free memory
+docker compose restart forge
 ```
 
-## 🎨 Customization
-
-### Adding Models
-
+### Port Conflicts
 ```bash
-# Text Generation models
-cd /opt/ai-box/models
-git lfs clone https://huggingface.co/TheBloke/Llama-2-7B-Chat-GGUF
+# Check what's using a port
+sudo lsof -i:8080
 
-# Stable Diffusion models
-wget https://huggingface.co/runwayml/stable-diffusion-v1-5/resolve/main/v1-5-pruned.safetensors
+# Change ports in .env file
+LOCALAI_PORT=8090
+OLLAMA_PORT=11435
+FORGE_PORT=7861
 ```
 
-### Modifying GPU Memory Allocation
+## 📈 Performance Tips
 
-Edit the Docker Compose file:
-```yaml
-environment:
-  - EXTRA_LAUNCH_ARGS=--listen --api --gpu-memory 20  # GB per GPU
-```
+### For LLMs
+- Use quantized models (GGUF format) for better memory efficiency
+- Enable GPU layers in LocalAI for acceleration
+- Consider using multiple GPUs for larger models
 
-### Custom Port Configuration
+### For Image Generation
+- Enable xformers in Forge for memory optimization
+- Use appropriate batch sizes based on GPU memory
+- Consider SDXL models for quality, SD 1.5 for speed
 
-During setup, specify custom ports:
-```
-Text Generation WebUI port: 8888
-Stable Diffusion WebUI port: 9999
-FastAPI port: 7777
-```
-
-## 📈 Performance Optimization
-
-### For Multiple GPUs
-
-- Use model parallelism for large models
-- Distribute different models across GPUs
-- Enable GPU-to-GPU communication
-
-### Memory Optimization
-
-- Use FP16 precision for inference
-- Enable gradient checkpointing
-- Consider model quantization
-
-### System Tuning
-
+### System Optimization
 ```bash
-# Enable persistence mode
+# Set GPU persistence mode
 sudo nvidia-smi -pm 1
 
-# Set power limit (watts)
-sudo nvidia-smi -pl 350
-```
-
-## 🔐 Security
-
-### Firewall Configuration
-
-The deployment automatically configures UFW:
-```bash
-# Check status
-sudo ufw status
-
-# Restrict to local network
-sudo ufw allow from 192.168.1.0/24 to any port 8080
-```
-
-### SSL/HTTPS
-
-For production, add SSL termination:
-```nginx
-server {
-    listen 443 ssl;
-    ssl_certificate /path/to/cert.pem;
-    ssl_certificate_key /path/to/key.pem;
-    # ... proxy configuration
-}
-```
-
-## 📚 API Usage
-
-### FastAPI Endpoints
-
-```python
-import requests
-
-# Load model
-response = requests.post("http://localhost:8000/load_model", json={
-    "model_name": "microsoft/DialoGPT-medium",
-    "precision": "fp16"
-})
-
-# Generate text
-response = requests.post("http://localhost:8000/generate", json={
-    "prompt": "Hello, how are you?",
-    "max_length": 100,
-    "temperature": 0.7
-})
-```
-
-### Stable Diffusion API
-
-```python
-# Generate image
-response = requests.post("http://localhost:8081/sdapi/v1/txt2img", json={
-    "prompt": "a beautiful sunset over mountains",
-    "steps": 20,
-    "width": 512,
-    "height": 512
-})
+# Monitor GPU usage
+watch -n 1 nvidia-smi
 ```
 
 ## 🤝 Contributing
 
 1. Fork the repository
-2. Create your feature branch (`git checkout -b feature/amazing-feature`)
-3. Commit your changes (`git commit -m 'Add amazing feature'`)
-4. Push to the branch (`git push origin feature/amazing-feature`)
+2. Create your feature branch (`git checkout -b feature/amazing`)
+3. Commit changes (`git commit -m 'Add feature'`)
+4. Push to branch (`git push origin feature/amazing`)
 5. Open a Pull Request
 
 ## 📄 License
 
-This project is licensed under the MIT License - see the LICENSE file for details.
+This project is licensed under the MIT License.
 
-## 🆘 Support
+## 🔗 Resources
 
-- Check the [Troubleshooting Guide](docs/TROUBLESHOOTING.md)
-- Review [GPU Assignment Guide](docs/GPU-ASSIGNMENT.md)
-- See [API Usage Examples](docs/API-USAGE.md)
-
-## 🙏 Acknowledgments
-
-- [Oobabooga Text Generation WebUI](https://github.com/oobabooga/text-generation-webui)
-- [AUTOMATIC1111 Stable Diffusion WebUI](https://github.com/AUTOMATIC1111/stable-diffusion-webui)
+- [LocalAI Documentation](https://localai.io/)
+- [Ollama Documentation](https://github.com/jmorganca/ollama)
+- [Stable Diffusion Forge](https://github.com/lllyasviel/stable-diffusion-webui-forge)
 - [NVIDIA Container Toolkit](https://github.com/NVIDIA/nvidia-container-toolkit)
 
 ---
 
-**Happy AI Boxing!** 🚀🤖
+**Built with ❤️ for the AI community**
