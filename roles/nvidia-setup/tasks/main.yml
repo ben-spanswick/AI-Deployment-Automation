@@ -1,0 +1,221 @@
+---
+# nvidia-setup/tasks/main.yml - Dynamic NVIDIA GPU setup
+
+- name: Set NVIDIA driver version based on GPU model
+  set_fact:
+    nvidia_driver_version: "{{ nvidia_driver_map[gpu_model] | default('535') }}"
+  vars:
+    nvidia_driver_map:
+      "RTX 3090": "535"
+      "RTX 4090": "545"
+      "A100": "535"
+      "A40": "535"
+      "RTX 3080": "535"
+      "RTX 3070": "535"
+      "RTX 3060": "535"
+
+- name: Display GPU configuration
+  debug:
+    msg: |
+      GPU Configuration:
+        Count: {{ gpu_count }}
+        Model: {{ gpu_model }}
+        Driver Version: {{ nvidia_driver_version }}
+
+- name: Check if NVIDIA driver is already installed
+  shell: nvidia-smi --query-gpu=driver_version --format=csv,noheader | head -1
+  register: current_driver_version
+  ignore_errors: yes
+  changed_when: false
+
+- name: Determine if driver installation is needed
+  set_fact:
+    driver_needs_install: "{{ current_driver_version.rc != 0 or (current_driver_version.stdout | trim) != nvidia_driver_version }}"
+
+- name: Install NVIDIA driver and CUDA
+  when: driver_needs_install
+  block:
+    - name: Remove old NVIDIA repositories
+      file:
+        path: "{{ item }}"
+        state: absent
+      loop:
+        - /etc/apt/sources.list.d/nvidia-container-toolkit.list
+        - /etc/apt/sources.list.d/nvidia-docker.list
+        - /etc/apt/sources.list.d/cuda.list
+        - /etc/apt/keyrings/nvidia-cuda.asc
+
+    - name: Install required packages
+      apt:
+        name:
+          - curl
+          - gnupg2
+          - software-properties-common
+          - build-essential
+          - linux-headers-{{ ansible_kernel }}
+        state: present
+        update_cache: yes
+
+    - name: Create keyrings directory
+      file:
+        path: /etc/apt/keyrings
+        state: directory
+        mode: '0755'
+
+    - name: Add NVIDIA CUDA GPG key
+      get_url:
+        url: "https://developer.download.nvidia.com/compute/cuda/repos/ubuntu{{ ansible_distribution_version | replace('.', '') }}/x86_64/3bf863cc.pub"
+        dest: /etc/apt/keyrings/nvidia-cuda.asc
+        mode: '0644'
+
+    - name: Add NVIDIA CUDA repository
+      apt_repository:
+        repo: "deb [signed-by=/etc/apt/keyrings/nvidia-cuda.asc] https://developer.download.nvidia.com/compute/cuda/repos/ubuntu{{ ansible_distribution_version | replace('.', '') }}/x86_64/ /"
+        state: present
+        filename: nvidia-cuda
+
+    - name: Update apt cache
+      apt:
+        update_cache: yes
+
+    - name: Install NVIDIA driver
+      apt:
+        name: "nvidia-driver-{{ nvidia_driver_version }}"
+        state: present
+      register: driver_install
+
+    - name: Install CUDA toolkit
+      apt:
+        name: "{{ item }}"
+        state: present
+      loop:
+        - cuda-toolkit-12-2
+        - cuda-12-2
+      ignore_errors: yes
+      register: cuda_install
+
+    - name: Blacklist nouveau driver
+      blockinfile:
+        path: /etc/modprobe.d/blacklist-nouveau.conf
+        create: yes
+        block: |
+          blacklist nouveau
+          options nouveau modeset=0
+
+    - name: Update initramfs
+      command: update-initramfs -u
+      when: driver_install.changed
+
+    - name: Set nvidia-persistenced to start on boot
+      systemd:
+        name: nvidia-persistenced
+        enabled: yes
+        state: started
+      ignore_errors: yes
+
+- name: Install NVIDIA Container Toolkit
+  block:
+    - name: Add NVIDIA Container Toolkit GPG key
+      get_url:
+        url: https://nvidia.github.io/libnvidia-container/gpgkey
+        dest: /etc/apt/keyrings/nvidia-container-toolkit.asc
+        mode: '0644'
+
+    - name: Determine architecture
+      command: dpkg --print-architecture
+      register: dpkg_arch
+      changed_when: false
+
+    - name: Add NVIDIA Container Toolkit repository
+      apt_repository:
+        repo: "deb [signed-by=/etc/apt/keyrings/nvidia-container-toolkit.asc] https://nvidia.github.io/libnvidia-container/stable/deb/{{ dpkg_arch.stdout }} /"
+        state: present
+        filename: nvidia-container-toolkit
+
+    - name: Install nvidia-container-toolkit
+      apt:
+        name: nvidia-container-toolkit
+        state: present
+        update_cache: yes
+
+- name: Configure NVIDIA container runtime
+  command: nvidia-ctk runtime configure --runtime=docker
+  notify: restart docker
+
+- name: Create GPU management scripts
+  copy:
+    dest: "/usr/local/bin/{{ item.name }}"
+    mode: '0755'
+    content: "{{ item.content }}"
+  loop:
+    - name: gpu-status
+      content: |
+        #!/bin/bash
+        echo "=== GPU Status ==="
+        nvidia-smi
+        echo
+        echo "=== GPU Processes ==="
+        nvidia-smi pmon -c 1
+        
+    - name: gpu-reset
+      content: |
+        #!/bin/bash
+        echo "Resetting GPU $1..."
+        nvidia-smi -i ${1:-0} -r
+        
+    - name: gpu-power
+      content: |
+        #!/bin/bash
+        # Set power limit for GPUs
+        for i in $(seq 0 {{ gpu_count | int - 1 }}); do
+          nvidia-smi -i $i -pl ${1:-350}
+        done
+
+- name: Set up GPU monitoring
+  when: enable_dcgm | default(false)
+  block:
+    - name: Install DCGM
+      apt:
+        deb: https://developer.download.nvidia.com/compute/cuda/repos/ubuntu{{ ansible_distribution_version | replace('.', '') }}/x86_64/datacenter-gpu-manager_3.1.8-1_amd64.deb
+        state: present
+      ignore_errors: yes
+
+- name: Configure GPU persistence mode
+  shell: nvidia-smi -pm 1
+  ignore_errors: yes
+
+- name: Reboot notification
+  debug:
+    msg: |
+      ⚠️  NVIDIA drivers were installed/updated.
+      A reboot is required to load the new drivers.
+      The playbook will continue after reboot.
+  when: driver_install is defined and driver_install.changed
+
+- name: Reboot if required
+  reboot:
+    msg: "Rebooting to load NVIDIA drivers"
+    reboot_timeout: 300
+  when: driver_install is defined and driver_install.changed
+
+- name: Wait for system to come back
+  wait_for_connection:
+    timeout: 600
+  when: driver_install is defined and driver_install.changed
+
+- name: Verify GPU availability after reboot
+  shell: nvidia-smi
+  register: gpu_verify
+  retries: 3
+  delay: 10
+  until: gpu_verify.rc == 0
+
+- name: Display GPU information
+  shell: |
+    nvidia-smi --query-gpu=index,name,memory.total,driver_version --format=csv
+  register: gpu_info
+  changed_when: false
+
+- name: Show GPU details
+  debug:
+    msg: "{{ gpu_info.stdout_lines }}"
