@@ -740,6 +740,15 @@ run_deployment() {
 }
 
 show_completion() {
+    # Set defaults if variables are not set (e.g., when keeping existing services)
+    TARGET_HOST=${TARGET_HOST:-localhost}
+    LOCALAI_PORT=${LOCALAI_PORT:-8080}
+    OLLAMA_PORT=${OLLAMA_PORT:-11434}
+    FORGE_PORT=${FORGE_PORT:-7860}
+    DCGM_PORT=${DCGM_PORT:-9400}
+    ENABLE_DCGM=${ENABLE_DCGM:-true}
+    ENABLE_DASHBOARD=${ENABLE_DASHBOARD:-false}
+    
     echo
     success "Deployment Complete!"
     echo
@@ -768,6 +777,17 @@ show_completion() {
         echo "🎯 Web Dashboard:"
         echo "   URL: http://${TARGET_HOST} (port 80)"
         echo "   Features: Service status, GPU monitoring, quick access"
+    else
+        echo
+        echo "📌 Note: Web Dashboard is not enabled."
+        echo "   To enable it, run setup again and choose 'Y' when asked about the dashboard."
+    fi
+    
+    # Check if dashboard container is actually running
+    if docker ps -q -f name="nginx-dashboard" | grep -q .; then
+        echo
+        echo "✅ Web Dashboard is running on port 80"
+        echo "   Access it at: http://${TARGET_HOST}"
     fi
     
     echo
