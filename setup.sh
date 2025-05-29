@@ -21,9 +21,10 @@ CONFIG_FILE="${SCRIPT_DIR}/.deployment.conf"
 
 # Default values
 DEFAULT_DEPLOY_METHOD="ansible"
-DEFAULT_TEXTGEN_PORT=8080
-DEFAULT_SD_PORT=8081
-DEFAULT_FASTAPI_PORT=8000
+DEFAULT_LOCALAI_PORT=8080
+DEFAULT_OLLAMA_PORT=11434
+DEFAULT_FORGE_PORT=7860
+DEFAULT_DCGM_PORT=9400
 DEFAULT_DRIVER_VERSION="535"
 
 # Functions
@@ -124,50 +125,59 @@ prompt_gpu_assignment() {
     echo "1) Automatic - Distribute GPUs across services"
     echo "2) Manual - Specify GPU assignment per service"
     echo "3) Single GPU - Use only one GPU for all services"
+    echo "4) All GPUs - All services use all available GPUs (recommended for LLMs)"
     
-    read -p "Enter choice [1-3] (default: 1): " gpu_choice
+    read -p "Enter choice [1-4] (default: 4): " gpu_choice
     
     case $gpu_choice in
-        1|"")
+        1)
             AUTO_GPU_ASSIGN=true
             if [[ $GPU_COUNT -ge 2 ]]; then
-                TEXTGEN_GPUS="0"
-                SD_GPUS="1"
-                FASTAPI_GPUS="0,1"
+                LOCALAI_GPUS="0"
+                OLLAMA_GPUS="1"
+                FORGE_GPUS="0,1"
             else
-                TEXTGEN_GPUS="0"
-                SD_GPUS="0"
-                FASTAPI_GPUS="0"
+                LOCALAI_GPUS="0"
+                OLLAMA_GPUS="0"
+                FORGE_GPUS="0"
             fi
             ;;
         2)
             AUTO_GPU_ASSIGN=false
             echo
             echo "Available GPUs: 0-$((GPU_COUNT-1))"
-            read -p "Text Generation GPU(s) [comma-separated] (default: 0): " TEXTGEN_GPUS
-            TEXTGEN_GPUS=${TEXTGEN_GPUS:-"0"}
+            read -p "LocalAI GPU(s) [comma-separated] (default: 0,1): " LOCALAI_GPUS
+            LOCALAI_GPUS=${LOCALAI_GPUS:-"0,1"}
             
-            read -p "Stable Diffusion GPU(s) [comma-separated] (default: 1): " SD_GPUS
-            SD_GPUS=${SD_GPUS:-"1"}
+            read -p "Ollama GPU(s) [comma-separated] (default: 0,1): " OLLAMA_GPUS
+            OLLAMA_GPUS=${OLLAMA_GPUS:-"0,1"}
             
-            read -p "FastAPI GPU(s) [comma-separated] (default: 0,1): " FASTAPI_GPUS
-            FASTAPI_GPUS=${FASTAPI_GPUS:-"0,1"}
+            read -p "Forge GPU(s) [comma-separated] (default: 0,1): " FORGE_GPUS
+            FORGE_GPUS=${FORGE_GPUS:-"0,1"}
             ;;
         3)
             AUTO_GPU_ASSIGN=false
             read -p "Which GPU to use [0-$((GPU_COUNT-1))] (default: 0): " SINGLE_GPU
             SINGLE_GPU=${SINGLE_GPU:-"0"}
-            TEXTGEN_GPUS="$SINGLE_GPU"
-            SD_GPUS="$SINGLE_GPU"
-            FASTAPI_GPUS="$SINGLE_GPU"
+            LOCALAI_GPUS="$SINGLE_GPU"
+            OLLAMA_GPUS="$SINGLE_GPU"
+            FORGE_GPUS="$SINGLE_GPU"
+            ;;
+        4|"")
+            AUTO_GPU_ASSIGN=true
+            # All services use all GPUs
+            ALL_GPUS=$(seq -s, 0 $((GPU_COUNT-1)))
+            LOCALAI_GPUS="$ALL_GPUS"
+            OLLAMA_GPUS="$ALL_GPUS"
+            FORGE_GPUS="$ALL_GPUS"
             ;;
     esac
     
     echo
     success "GPU Assignment:"
-    echo "  Text Generation: GPU(s) $TEXTGEN_GPUS"
-    echo "  Stable Diffusion: GPU(s) $SD_GPUS"
-    echo "  FastAPI: GPU(s) $FASTAPI_GPUS"
+    echo "  LocalAI: GPU(s) $LOCALAI_GPUS"
+    echo "  Ollama: GPU(s) $OLLAMA_GPUS"
+    echo "  Forge: GPU(s) $FORGE_GPUS"
 }
 
 prompt_service_ports() {
@@ -175,17 +185,20 @@ prompt_service_ports() {
     echo -e "${BOLD}Service Port Configuration${NC}"
     echo "Configure ports for each service (press Enter for defaults)"
     
-    read -p "Text Generation WebUI port (default: $DEFAULT_TEXTGEN_PORT): " TEXTGEN_PORT
-    TEXTGEN_PORT=${TEXTGEN_PORT:-$DEFAULT_TEXTGEN_PORT}
+    read -p "LocalAI port (default: $DEFAULT_LOCALAI_PORT): " LOCALAI_PORT
+    LOCALAI_PORT=${LOCALAI_PORT:-$DEFAULT_LOCALAI_PORT}
     
-    read -p "Stable Diffusion WebUI port (default: $DEFAULT_SD_PORT): " SD_PORT
-    SD_PORT=${SD_PORT:-$DEFAULT_SD_PORT}
+    read -p "Ollama port (default: $DEFAULT_OLLAMA_PORT): " OLLAMA_PORT
+    OLLAMA_PORT=${OLLAMA_PORT:-$DEFAULT_OLLAMA_PORT}
     
-    read -p "FastAPI port (default: $DEFAULT_FASTAPI_PORT): " FASTAPI_PORT
-    FASTAPI_PORT=${FASTAPI_PORT:-$DEFAULT_FASTAPI_PORT}
+    read -p "Forge port (default: $DEFAULT_FORGE_PORT): " FORGE_PORT
+    FORGE_PORT=${FORGE_PORT:-$DEFAULT_FORGE_PORT}
+    
+    read -p "DCGM Metrics port (default: $DEFAULT_DCGM_PORT): " DCGM_PORT
+    DCGM_PORT=${DCGM_PORT:-$DEFAULT_DCGM_PORT}
     
     # Check for port conflicts
-    for port in $TEXTGEN_PORT $SD_PORT $FASTAPI_PORT; do
+    for port in $LOCALAI_PORT $OLLAMA_PORT $FORGE_PORT $DCGM_PORT; do
         if lsof -i:$port &> /dev/null; then
             warn "Port $port is already in use!"
         fi
