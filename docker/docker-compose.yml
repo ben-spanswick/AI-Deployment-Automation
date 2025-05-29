@@ -1,0 +1,144 @@
+# AI Box Docker Compose Configuration - Modern Stack
+# LocalAI + Ollama + Stable Diffusion Forge
+version: '3.8'
+
+services:
+  # LocalAI - OpenAI-compatible local LLM API
+  localai:
+    image: quay.io/go-skynet/local-ai:latest-gpu-nvidia-cuda-12
+    container_name: localai
+    ports:
+      - "${LOCALAI_PORT:-8080}:8080"
+    volumes:
+      - ${MODELS_DIR:-/opt/ai-box/models}:/build/models
+      - localai-data:/tmp/generated
+    environment:
+      - THREADS=${LOCALAI_THREADS:-8}
+      - DEBUG=${DEBUG:-false}
+      - CUDA_VISIBLE_DEVICES=${LOCALAI_GPUS:-0,1}
+    deploy:
+      resources:
+        reservations:
+          devices:
+            - driver: nvidia
+              device_ids: ${LOCALAI_GPU_IDS:-['0','1']}
+              capabilities: [gpu]
+    restart: unless-stopped
+    networks:
+      - ai-network
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8080/v1/models"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+  
+  # Ollama - Easy model management and API
+  ollama:
+    image: ollama/ollama:latest
+    container_name: ollama
+    ports:
+      - "${OLLAMA_PORT:-11434}:11434"
+    volumes:
+      - ollama-data:/root/.ollama
+    environment:
+      - OLLAMA_HOST=0.0.0.0
+      - OLLAMA_DEBUG=${OLLAMA_DEBUG:-info}
+      - CUDA_VISIBLE_DEVICES=${OLLAMA_GPUS:-0,1}
+    deploy:
+      resources:
+        reservations:
+          devices:
+            - driver: nvidia
+              device_ids: ${OLLAMA_GPU_IDS:-['0','1']}
+              capabilities: [gpu]
+    restart: unless-stopped
+    networks:
+      - ai-network
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:11434/"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      
+  # Stable Diffusion WebUI Forge
+  forge:
+    image: nykk3/stable-diffusion-webui-forge:latest
+    container_name: forge
+    ports:
+      - "${FORGE_PORT:-7860}:7860"
+    volumes:
+      # Model directories
+      - ${MODELS_DIR:-/opt/ai-box/models}/stable-diffusion:/app/stable-diffusion-webui/models/Stable-diffusion
+      - ${MODELS_DIR:-/opt/ai-box/models}/stable-diffusion/SDXL:/app/stable-diffusion-webui/models/SDXL  
+      - ${MODELS_DIR:-/opt/ai-box/models}/vae:/app/stable-diffusion-webui/models/VAE
+      - ${MODELS_DIR:-/opt/ai-box/models}/loras:/app/stable-diffusion-webui/models/Lora
+      - ${MODELS_DIR:-/opt/ai-box/models}/embeddings:/app/stable-diffusion-webui/models/embeddings
+      # Output directory
+      - ${OUTPUTS_DIR:-./data/forge-outputs}:/app/stable-diffusion-webui/outputs
+      # Extensions directory
+      - forge-extensions:/app/stable-diffusion-webui/extensions
+    environment:
+      - COMMANDLINE_ARGS=--listen --port 7860 --api --xformers --enable-insecure-extension-access --skip-torch-cuda-test --skip-version-check --no-download-sd-model ${FORGE_EXTRA_ARGS:-}
+      - CUDA_VISIBLE_DEVICES=${FORGE_GPUS:-0,1}
+    deploy:
+      resources:
+        reservations:
+          devices:
+            - driver: nvidia
+              device_ids: ${FORGE_GPU_IDS:-['0','1']}
+              capabilities: [gpu]
+        limits:
+          memory: ${FORGE_MEMORY_LIMIT:-24G}
+    restart: unless-stopped
+    shm_size: ${FORGE_SHM_SIZE:-12gb}
+    networks:
+      - ai-network
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:7860/"]
+      interval: 30s
+      timeout: 10s
+      retries: 5
+      start_period: 120s
+
+  # NVIDIA DCGM GPU Metrics
+  dcgm-exporter:
+    image: nvcr.io/nvidia/k8s/dcgm-exporter:3.1.8-3.1.5-ubuntu20.04
+    container_name: dcgm-exporter
+    ports:
+      - "${DCGM_PORT:-9400}:9400"
+    environment:
+      - DCGM_EXPORTER_LISTEN=0.0.0.0:9400
+      - DCGM_EXPORTER_KUBERNETES=false
+      - DCGM_EXPORTER_COLLECTORS=/etc/dcgm-exporter/dcp-metrics-included.csv
+    deploy:
+      resources:
+        reservations:
+          devices:
+            - driver: nvidia
+              capabilities: [gpu]
+              count: all
+    restart: unless-stopped
+    cap_add:
+      - SYS_ADMIN
+    networks:
+      - ai-network
+
+# Network configuration
+networks:
+  ai-network:
+    driver: bridge
+    name: ai-network
+    ipam:
+      config:
+        - subnet: 172.20.0.0/16
+
+# Named volumes for persistent data
+volumes:
+  localai-data:
+    driver: local
+  ollama-data:
+    driver: local
+  forge-extensions:
+    driver: local
+  forge-config: 
+    driver: local
