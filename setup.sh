@@ -1,11 +1,15 @@
 #!/bin/bash
-# setup.sh - Dynamic AI Box Setup Script
-# Supports flexible GPU configurations and deployment options
+# setup.sh - Dynamic AI Box Setup Script with Re-run Detection
+# Supports flexible GPU configurations and safe re-deployment
 
 set -euo pipefail
 
 # Script directory
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+
+# Configuration files
+CONFIG_FILE="${SCRIPT_DIR}/.deployment.conf"
+STATE_FILE="${SCRIPT_DIR}/.deployment-state"
 
 # Colors for output
 RED='\033[0;31m'
@@ -15,9 +19,6 @@ BLUE='\033[0;34m'
 CYAN='\033[0;36m'
 BOLD='\033[1m'
 NC='\033[0m'
-
-# Configuration file
-CONFIG_FILE="${SCRIPT_DIR}/.deployment.conf"
 
 # Default values
 DEFAULT_DEPLOY_METHOD="ansible"
@@ -41,7 +42,35 @@ log() { echo -e "${BLUE}[INFO]${NC} $1"; }
 error() { echo -e "${RED}[ERROR]${NC} $1" >&2; }
 success() { echo -e "${GREEN}[SUCCESS]${NC} $1"; }
 warn() { echo -e "${YELLOW}[WARNING]${NC} $1"; }
+skip() { echo -e "${CYAN}[SKIP]${NC} $1"; }
 
+# State management functions
+save_state() {
+    local key=$1
+    local value=$2
+    if grep -q "^${key}=" "$STATE_FILE" 2>/dev/null; then
+        sed -i "s/^${key}=.*/${key}=${value}/" "$STATE_FILE"
+    else
+        echo "${key}=${value}" >> "$STATE_FILE"
+    fi
+}
+
+get_state() {
+    local key=$1
+    if [[ -f "$STATE_FILE" ]]; then
+        grep "^${key}=" "$STATE_FILE" 2>/dev/null | cut -d'=' -f2 || echo ""
+    else
+        echo ""
+    fi
+}
+
+check_state() {
+    local key=$1
+    local state=$(get_state "$key")
+    [[ "$state" == "completed" ]]
+}
+
+# System checks
 check_root() {
     if [[ $EUID -eq 0 ]]; then
         error "This script should not be run as root"
@@ -69,8 +98,72 @@ detect_os() {
     log "Detected OS: Ubuntu $VER"
 }
 
+check_existing_services() {
+    log "Checking existing AI Box services..."
+    
+    local services=("localai" "ollama" "forge" "dcgm-exporter")
+    local running_services=()
+    local stopped_services=()
+    
+    if command -v docker &> /dev/null; then
+        for service in "${services[@]}"; do
+            if docker ps -q -f name="^${service}$" 2>/dev/null | grep -q .; then
+                running_services+=("$service")
+            elif docker ps -aq -f name="^${service}$" 2>/dev/null | grep -q .; then
+                stopped_services+=("$service")
+            fi
+        done
+    fi
+    
+    if [[ ${#running_services[@]} -gt 0 ]]; then
+        echo
+        success "Found running services: ${running_services[*]}"
+        echo
+        echo "What would you like to do with existing services?"
+        echo "1) Keep them running (recommended)"
+        echo "2) Restart with new configuration only"
+        echo "3) Stop services but keep data"
+        echo "4) Remove everything and redeploy (WARNING: data loss)"
+        
+        read -p "Enter choice [1-4] (default: 1): " service_choice
+        case $service_choice in
+            1|"") 
+                SKIP_DEPLOYMENT=true
+                skip "Keeping existing services as-is"
+                ;;
+            2) 
+                RESTART_SERVICES=true
+                log "Will restart services with new configuration"
+                ;;
+            3)
+                STOP_SERVICES=true
+                log "Will stop services but preserve data"
+                ;;
+            4) 
+                warn "This will DELETE all container data!"
+                read -p "Are you SURE? Type 'yes' to confirm: " confirm
+                if [[ "$confirm" == "yes" ]]; then
+                    REMOVE_SERVICES=true
+                    warn "Will remove and redeploy all services"
+                else
+                    SKIP_DEPLOYMENT=true
+                    skip "Cancelled - keeping existing services"
+                fi
+                ;;
+        esac
+    fi
+    
+    if [[ ${#stopped_services[@]} -gt 0 ]]; then
+        warn "Found stopped services: ${stopped_services[*]}"
+        echo "These will be removed and redeployed"
+    fi
+}
+
 detect_gpus() {
     log "Detecting GPU configuration..."
+    
+    # Check for saved GPU state
+    local saved_gpu_count=$(get_state "gpu_count")
     
     # Run GPU detection script
     if [[ -f "${SCRIPT_DIR}/scripts/gpu-detect.sh" ]]; then
@@ -96,6 +189,69 @@ detect_gpus() {
     fi
     
     success "Detected $GPU_COUNT NVIDIA GPU(s): $GPU_MODEL"
+    
+    # Check if GPU configuration changed
+    if [[ -n "$saved_gpu_count" ]] && [[ "$GPU_COUNT" != "$saved_gpu_count" ]]; then
+        warn "GPU configuration has changed!"
+        warn "Previous: $saved_gpu_count GPUs, Current: $GPU_COUNT GPUs"
+        echo "You may need to reconfigure GPU assignments"
+    fi
+    
+    # Save current GPU state
+    save_state "gpu_count" "$GPU_COUNT"
+    save_state "gpu_model" "$GPU_MODEL"
+}
+
+check_disk_space() {
+    log "Checking disk space..."
+    
+    local required_gb=100
+    local available_gb=$(df -BG /opt 2>/dev/null | awk 'NR==2 {print $4}' | sed 's/G//')
+    
+    if [[ $available_gb -lt $required_gb ]]; then
+        warn "Low disk space: ${available_gb}GB available, ${required_gb}GB recommended"
+        read -p "Continue anyway? (y/N): " -n 1 -r
+        echo
+        if [[ ! $REPLY =~ ^[Yy]$ ]]; then
+            exit 1
+        fi
+    else
+        skip "Disk space OK: ${available_gb}GB available"
+    fi
+}
+
+check_nvidia_driver() {
+    if command -v nvidia-smi &> /dev/null; then
+        local current_version=$(nvidia-smi --query-gpu=driver_version --format=csv,noheader | head -1 | tr -d ' ')
+        local required_version="${DEFAULT_DRIVER_VERSION}"
+        
+        if [[ "$current_version" == "$required_version"* ]]; then
+            skip "NVIDIA driver $current_version already installed"
+            return 0
+        else
+            warn "NVIDIA driver $current_version installed, but $required_version recommended"
+            return 1
+        fi
+    else
+        return 1
+    fi
+}
+
+check_docker() {
+    if command -v docker &> /dev/null && docker --version &> /dev/null; then
+        skip "Docker already installed: $(docker --version)"
+        
+        # Check if nvidia runtime is configured
+        if docker info 2>/dev/null | grep -q "nvidia"; then
+            skip "NVIDIA container runtime already configured"
+            return 0
+        else
+            warn "Docker installed but NVIDIA runtime not configured"
+            return 1
+        fi
+    else
+        return 1
+    fi
 }
 
 prompt_deployment_method() {
@@ -114,6 +270,31 @@ prompt_deployment_method() {
     esac
     
     log "Selected deployment method: $DEPLOY_METHOD"
+}
+
+prompt_deployment_target() {
+    echo
+    echo -e "${BOLD}Deployment Target${NC}"
+    echo "1) Local machine (this computer)"
+    echo "2) Remote machine (SSH)"
+    
+    read -p "Enter choice [1-2] (default: 1): " target_choice
+    
+    case $target_choice in
+        1|"")
+            DEPLOY_TARGET="local"
+            TARGET_HOST="localhost"
+            TARGET_USER="$USER"
+            ;;
+        2)
+            DEPLOY_TARGET="remote"
+            read -p "Remote hostname/IP: " TARGET_HOST
+            read -p "Remote username (default: $USER): " TARGET_USER
+            TARGET_USER=${TARGET_USER:-$USER}
+            read -p "SSH key path (default: ~/.ssh/id_rsa): " SSH_KEY
+            SSH_KEY=${SSH_KEY:-"$HOME/.ssh/id_rsa"}
+            ;;
+    esac
 }
 
 prompt_gpu_assignment() {
@@ -222,31 +403,6 @@ prompt_optional_features() {
     ENABLE_DASHBOARD=$([[ $REPLY =~ ^[Yy]$ ]] && echo "true" || echo "false")
 }
 
-prompt_deployment_target() {
-    echo
-    echo -e "${BOLD}Deployment Target${NC}"
-    echo "1) Local machine (this computer)"
-    echo "2) Remote machine (SSH)"
-    
-    read -p "Enter choice [1-2] (default: 1): " target_choice
-    
-    case $target_choice in
-        1|"")
-            DEPLOY_TARGET="local"
-            TARGET_HOST="localhost"
-            TARGET_USER="$USER"
-            ;;
-        2)
-            DEPLOY_TARGET="remote"
-            read -p "Remote hostname/IP: " TARGET_HOST
-            read -p "Remote username (default: $USER): " TARGET_USER
-            TARGET_USER=${TARGET_USER:-$USER}
-            read -p "SSH key path (default: ~/.ssh/id_rsa): " SSH_KEY
-            SSH_KEY=${SSH_KEY:-"$HOME/.ssh/id_rsa"}
-            ;;
-    esac
-}
-
 save_configuration() {
     log "Saving configuration..."
     
@@ -312,14 +468,15 @@ all:
           gpu_model: "${GPU_MODEL}"
           
           # GPU assignments
-          textgen_gpus: "${TEXTGEN_GPUS}"
-          sd_gpus: "${SD_GPUS}"
-          fastapi_gpus: "${FASTAPI_GPUS}"
+          localai_gpus: "${LOCALAI_GPUS}"
+          ollama_gpus: "${OLLAMA_GPUS}"
+          forge_gpus: "${FORGE_GPUS}"
           
           # Service ports
-          textgen_port: ${TEXTGEN_PORT}
-          stablediffusion_port: ${SD_PORT}
-          fastapi_port: ${FASTAPI_PORT}
+          localai_port: ${LOCALAI_PORT}
+          ollama_port: ${OLLAMA_PORT}
+          forge_port: ${FORGE_PORT}
+          dcgm_port: ${DCGM_PORT}
           
           # Optional features
           enable_dcgm: ${ENABLE_DCGM}
@@ -337,16 +494,15 @@ generate_docker_env() {
 
 # GPU Configuration
 GPU_COUNT=${GPU_COUNT}
-TEXTGEN_GPUS=${TEXTGEN_GPUS}
-SD_GPUS=${SD_GPUS}
-FASTAPI_GPUS=${FASTAPI_GPUS}
+LOCALAI_GPUS=${LOCALAI_GPUS}
+OLLAMA_GPUS=${OLLAMA_GPUS}
+FORGE_GPUS=${FORGE_GPUS}
 
 # Service Ports
-TEXTGEN_PORT=${TEXTGEN_PORT}
-SD_PORT=${SD_PORT}
-FASTAPI_PORT=${FASTAPI_PORT}
-DCGM_PORT=9400
-NGINX_PORT=80
+LOCALAI_PORT=${LOCALAI_PORT}
+OLLAMA_PORT=${OLLAMA_PORT}
+FORGE_PORT=${FORGE_PORT}
+DCGM_PORT=${DCGM_PORT}
 
 # Optional Features
 ENABLE_DCGM=${ENABLE_DCGM}
@@ -354,8 +510,8 @@ ENABLE_WATCHTOWER=${ENABLE_WATCHTOWER}
 ENABLE_DASHBOARD=${ENABLE_DASHBOARD}
 
 # Paths
-MODELS_DIR=./models
-OUTPUTS_DIR=./outputs
+MODELS_DIR=/opt/ai-box/models
+OUTPUTS_DIR=/opt/ai-box/outputs
 
 # Container Settings
 COMPOSE_PROJECT_NAME=ai-box
@@ -374,9 +530,9 @@ run_deployment() {
     echo "  Target: $TARGET_HOST"
     echo "  GPUs: $GPU_COUNT x $GPU_MODEL"
     echo "  Services:"
-    echo "    - Text Generation WebUI: Port $TEXTGEN_PORT (GPU $TEXTGEN_GPUS)"
-    echo "    - Stable Diffusion WebUI: Port $SD_PORT (GPU $SD_GPUS)"
-    echo "    - FastAPI: Port $FASTAPI_PORT (GPU $FASTAPI_GPUS)"
+    echo "    - LocalAI: Port $LOCALAI_PORT (GPU $LOCALAI_GPUS)"
+    echo "    - Ollama: Port $OLLAMA_PORT (GPU $OLLAMA_GPUS)"
+    echo "    - Forge: Port $FORGE_PORT (GPU $FORGE_GPUS)"
     echo
     
     read -p "Proceed with deployment? [Y/n]: " -n 1 -r
@@ -387,21 +543,64 @@ run_deployment() {
         exit 0
     fi
     
+    # Handle service removal if requested
+    if [[ "${REMOVE_SERVICES:-false}" == "true" ]]; then
+        log "Removing existing services..."
+        if [[ -f "/opt/ai-box/docker-compose.yml" ]]; then
+            cd /opt/ai-box
+            docker compose down -v || true
+        fi
+    fi
+    
     case $DEPLOY_METHOD in
         ansible)
             log "Running Ansible deployment..."
             cd "${SCRIPT_DIR}/ansible"
-            ansible-playbook -i inventory.yml playbook.yml -v
+            
+            # Check if we need to install NVIDIA driver
+            if ! check_state "nvidia_driver" || ! check_nvidia_driver; then
+                handle_nvidia_driver_install  # This may exit for reboot
+            fi
+            
+            if ! check_state "docker" || ! check_docker; then
+                ansible-playbook -i inventory.yml playbook.yml --tags docker -v
+                save_state "docker" "completed"
+            fi
+            
+            # Deploy services
+            ansible-playbook -i inventory.yml playbook.yml --tags services -v
+            save_state "services" "completed"
             ;;
+            
         docker)
             log "Running Docker Compose deployment..."
+            
+            # Check prerequisites
+            if ! check_docker; then
+                error "Docker is not installed. Please run with Ansible deployment method first."
+                exit 1
+            fi
+            
             cd "${SCRIPT_DIR}/docker"
-            docker compose up -d
+            
+            if [[ "${RESTART_SERVICES:-false}" == "true" ]]; then
+                docker compose restart
+            else
+                docker compose up -d
+            fi
+            save_state "services" "completed"
             ;;
+            
         hybrid)
             log "Running hybrid deployment..."
             cd "${SCRIPT_DIR}/ansible"
-            ansible-playbook -i inventory.yml playbook.yml --tags system,docker -v
+            
+            # System setup only
+            if ! check_state "system_setup"; then
+                ansible-playbook -i inventory.yml playbook.yml --tags system,docker -v
+                save_state "system_setup" "completed"
+            fi
+            
             echo
             success "System setup complete!"
             echo "To start services, run:"
@@ -414,26 +613,55 @@ show_completion() {
     echo
     success "Deployment Complete!"
     echo
-    echo "Access your services:"
-    echo "  Text Generation: http://${TARGET_HOST}:${TEXTGEN_PORT}"
-    echo "  Stable Diffusion: http://${TARGET_HOST}:${SD_PORT}"
-    echo "  API Docs: http://${TARGET_HOST}:${FASTAPI_PORT}/docs"
+    echo -e "${BOLD}${CYAN}=== Access Your Services ===${NC}"
+    echo
+    echo "🧠 LocalAI (OpenAI-compatible API):"
+    echo "   URL: http://${TARGET_HOST}:${LOCALAI_PORT}"
+    echo "   API: http://${TARGET_HOST}:${LOCALAI_PORT}/v1/completions"
+    echo
+    echo "🦙 Ollama (Model Management):"
+    echo "   URL: http://${TARGET_HOST}:${OLLAMA_PORT}"
+    echo "   CLI: docker exec ollama ollama run llama2"
+    echo
+    echo "🎨 Stable Diffusion Forge:"
+    echo "   URL: http://${TARGET_HOST}:${FORGE_PORT}"
+    echo "   API: http://${TARGET_HOST}:${FORGE_PORT}/sdapi/v1/txt2img"
     
     if [[ "$ENABLE_DCGM" == "true" ]]; then
-        echo "  GPU Metrics: http://${TARGET_HOST}:9400/metrics"
+        echo
+        echo "📊 GPU Metrics:"
+        echo "   URL: http://${TARGET_HOST}:${DCGM_PORT}/metrics"
     fi
     
     if [[ "$ENABLE_DASHBOARD" == "true" ]]; then
-        echo "  Dashboard: http://${TARGET_HOST}"
+        echo
+        echo "🎯 Web Dashboard:"
+        echo "   URL: http://${TARGET_HOST} (port 80)"
+        echo "   Features: Service status, GPU monitoring, quick access"
     fi
     
     echo
-    echo "Configuration saved to: $CONFIG_FILE"
+    echo -e "${BOLD}${CYAN}=== Directory Structure ===${NC}"
+    echo "Models: /opt/ai-box/models/"
+    echo "  ├── LocalAI models: /opt/ai-box/models/*.gguf"
+    echo "  ├── SD models: /opt/ai-box/models/stable-diffusion/"
+    echo "  ├── LoRA models: /opt/ai-box/models/loras/"
+    echo "  └── VAE models: /opt/ai-box/models/vae/"
+    echo "Outputs: /opt/ai-box/outputs/"
+    
     echo
-    echo "Useful commands:"
-    echo "  Check status: ${SCRIPT_DIR}/scripts/health-check.sh"
-    echo "  View logs: cd ${AI_BOX_DIR} && docker compose logs -f"
-    echo "  Cleanup: ${SCRIPT_DIR}/scripts/cleanup.sh"
+    echo -e "${BOLD}${CYAN}=== Useful Commands ===${NC}"
+    echo "Check status: ${SCRIPT_DIR}/scripts/check-status.sh"
+    echo "View logs: cd /opt/ai-box && docker compose logs -f [service]"
+    echo "Restart services: cd /opt/ai-box && docker compose restart"
+    echo "Update services: cd /opt/ai-box && docker compose pull && docker compose up -d"
+    
+    echo
+    echo "Configuration saved to: $CONFIG_FILE"
+    echo "Deployment state saved to: $STATE_FILE"
+    
+    # Cleanup
+    cleanup_temp_files
 }
 
 # Main execution
@@ -441,15 +669,43 @@ main() {
     print_banner
     check_root
     detect_os
+    
+    # Initialize state file
+    if [[ ! -f "$STATE_FILE" ]]; then
+        touch "$STATE_FILE"
+        log "Created deployment state file"
+    fi
+    
+    # Check system status
+    check_disk_space
     detect_gpus
+    check_resume_after_reboot  # Check if we're resuming after reboot
+    create_directory_structure  # Create directories early
+    check_existing_services
+    
+    # Skip deployment if requested
+    if [[ "${SKIP_DEPLOYMENT:-false}" == "true" ]]; then
+        show_completion
+        exit 0
+    fi
     
     # Check for existing configuration
     if [[ -f "$CONFIG_FILE" ]]; then
         echo
-        read -p "Found existing configuration. Use it? [Y/n]: " -n 1 -r
+        log "Found existing configuration from $(stat -c %y "$CONFIG_FILE" | cut -d' ' -f1)"
+        source "$CONFIG_FILE"
+        
+        echo "Previous settings:"
+        echo "  - Method: $DEPLOY_METHOD"
+        echo "  - GPUs: $GPU_COUNT x $GPU_MODEL"
+        echo "  - Services: LocalAI:$LOCALAI_PORT, Ollama:$OLLAMA_PORT, Forge:$FORGE_PORT"
+        echo
+        
+        read -p "Use existing configuration? [Y/n]: " -n 1 -r
         echo
         if [[ $REPLY =~ ^[Yy]$ ]]; then
-            source "$CONFIG_FILE"
+            generate_ansible_inventory
+            generate_docker_env
             run_deployment
             show_completion
             exit 0
@@ -472,6 +728,9 @@ main() {
     run_deployment
     show_completion
 }
+
+# Handle interruption
+trap 'echo -e "\n${YELLOW}Deployment interrupted. Run again to resume.${NC}"; exit 130' INT TERM
 
 # Script execution
 if [[ "${BASH_SOURCE[0]}" == "${0}" ]]; then
