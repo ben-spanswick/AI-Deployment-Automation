@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>AI Box Dashboard</title>
+    <title>AI Box Dashboard - Modern Stack</title>
     <style>
         * {
             margin: 0;
@@ -251,6 +251,19 @@
             display: none;
         }
         
+        .api-examples {
+            margin-top: 0.5rem;
+            font-size: 0.85rem;
+            color: #666;
+        }
+        
+        code {
+            background: #0a0a0a;
+            padding: 0.2rem 0.4rem;
+            border-radius: 4px;
+            font-family: 'Monaco', monospace;
+        }
+        
         @media (max-width: 768px) {
             .services-grid {
                 grid-template-columns: 1fr;
@@ -264,7 +277,7 @@
 <body>
     <header>
         <h1>🤖 AI Box Dashboard</h1>
-        <p class="subtitle">Multi-GPU AI Workstation Control Center</p>
+        <p class="subtitle">LocalAI + Ollama + Stable Diffusion Forge</p>
     </header>
     
     <main>
@@ -273,86 +286,95 @@
         <div class="services-grid">
             <div class="service-card">
                 <div class="service-header">
-                    <div class="service-icon">💬</div>
-                    <h2 class="service-name">Text Generation</h2>
+                    <div class="service-icon">🧠</div>
+                    <h2 class="service-name">LocalAI</h2>
                 </div>
                 <p class="service-description">
-                    Large Language Model chat interface powered by Oobabooga's WebUI
+                    OpenAI-compatible API for local LLM inference. Drop-in replacement for OpenAI API.
                 </p>
                 <div class="service-info">
                     <div class="info-row">
                         <span class="info-label">Status</span>
                         <span class="info-value">
-                            <span class="status-indicator status-loading" id="textgen-status"></span>
-                            <span id="textgen-status-text">Checking...</span>
+                            <span class="status-indicator status-loading" id="localai-status"></span>
+                            <span id="localai-status-text">Checking...</span>
                         </span>
                     </div>
                     <div class="info-row">
                         <span class="info-label">Port</span>
-                        <span class="info-value" id="textgen-port">8080</span>
+                        <span class="info-value" id="localai-port">8080</span>
                     </div>
                     <div class="info-row">
                         <span class="info-label">GPU</span>
-                        <span class="info-value" id="textgen-gpu">GPU 0</span>
+                        <span class="info-value" id="localai-gpu">GPU 0,1</span>
                     </div>
                 </div>
-                <a href="/textgen" class="btn" target="_blank">Open Interface</a>
+                <a href="/localai" class="btn" target="_blank">Open WebUI</a>
+                <div class="api-examples">
+                    API: <code>http://localhost:8080/v1/completions</code>
+                </div>
+            </div>
+            
+            <div class="service-card">
+                <div class="service-header">
+                    <div class="service-icon">🦙</div>
+                    <h2 class="service-name">Ollama</h2>
+                </div>
+                <p class="service-description">
+                    Easy model management and API. Run Llama, Mistral, and other models with simple commands.
+                </p>
+                <div class="service-info">
+                    <div class="info-row">
+                        <span class="info-label">Status</span>
+                        <span class="info-value">
+                            <span class="status-indicator status-loading" id="ollama-status"></span>
+                            <span id="ollama-status-text">Checking...</span>
+                        </span>
+                    </div>
+                    <div class="info-row">
+                        <span class="info-label">Port</span>
+                        <span class="info-value" id="ollama-port">11434</span>
+                    </div>
+                    <div class="info-row">
+                        <span class="info-label">GPU</span>
+                        <span class="info-value" id="ollama-gpu">GPU 0,1</span>
+                    </div>
+                </div>
+                <a href="http://localhost:11434" class="btn" target="_blank">API Endpoint</a>
+                <div class="api-examples">
+                    CLI: <code>ollama run llama2</code>
+                </div>
             </div>
             
             <div class="service-card">
                 <div class="service-header">
                     <div class="service-icon">🎨</div>
-                    <h2 class="service-name">Stable Diffusion</h2>
+                    <h2 class="service-name">Stable Diffusion Forge</h2>
                 </div>
                 <p class="service-description">
-                    AI image generation with advanced models and controls
+                    Next-gen WebUI for Stable Diffusion with optimized performance and advanced features.
                 </p>
                 <div class="service-info">
                     <div class="info-row">
                         <span class="info-label">Status</span>
                         <span class="info-value">
-                            <span class="status-indicator status-loading" id="sd-status"></span>
-                            <span id="sd-status-text">Checking...</span>
+                            <span class="status-indicator status-loading" id="forge-status"></span>
+                            <span id="forge-status-text">Checking...</span>
                         </span>
                     </div>
                     <div class="info-row">
                         <span class="info-label">Port</span>
-                        <span class="info-value" id="sd-port">8081</span>
+                        <span class="info-value" id="forge-port">7860</span>
                     </div>
                     <div class="info-row">
                         <span class="info-label">GPU</span>
-                        <span class="info-value" id="sd-gpu">GPU 1</span>
+                        <span class="info-value" id="forge-gpu">GPU 0,1</span>
                     </div>
                 </div>
-                <a href="/sd" class="btn" target="_blank">Open Interface</a>
-            </div>
-            
-            <div class="service-card">
-                <div class="service-header">
-                    <div class="service-icon">🚀</div>
-                    <h2 class="service-name">FastAPI</h2>
+                <a href="/forge" class="btn" target="_blank">Open WebUI</a>
+                <div class="api-examples">
+                    API: <code>http://localhost:7860/sdapi/v1/txt2img</code>
                 </div>
-                <p class="service-description">
-                    REST API endpoint for programmatic AI inference
-                </p>
-                <div class="service-info">
-                    <div class="info-row">
-                        <span class="info-label">Status</span>
-                        <span class="info-value">
-                            <span class="status-indicator status-loading" id="api-status"></span>
-                            <span id="api-status-text">Checking...</span>
-                        </span>
-                    </div>
-                    <div class="info-row">
-                        <span class="info-label">Port</span>
-                        <span class="info-value" id="api-port">8000</span>
-                    </div>
-                    <div class="info-row">
-                        <span class="info-label">GPU</span>
-                        <span class="info-value" id="api-gpu">GPU 0,1</span>
-                    </div>
-                </div>
-                <a href="/api/docs" class="btn" target="_blank">API Documentation</a>
             </div>
         </div>
         
@@ -373,16 +395,16 @@
     <script>
         // Configuration from environment
         const config = {
-            textgenPort: window.TEXTGEN_PORT || '8080',
-            sdPort: window.SD_PORT || '8081',
-            apiPort: window.API_PORT || '8000',
+            localaiPort: window.LOCALAI_PORT || '8080',
+            ollamaPort: window.OLLAMA_PORT || '11434',
+            forgePort: window.FORGE_PORT || '7860',
             metricsPort: window.METRICS_PORT || '9400'
         };
         
         // Update port displays
-        document.getElementById('textgen-port').textContent = config.textgenPort;
-        document.getElementById('sd-port').textContent = config.sdPort;
-        document.getElementById('api-port').textContent = config.apiPort;
+        document.getElementById('localai-port').textContent = config.localaiPort;
+        document.getElementById('ollama-port').textContent = config.ollamaPort;
+        document.getElementById('forge-port').textContent = config.forgePort;
         
         // Service health check
         async function checkServiceHealth(service, url) {
@@ -401,19 +423,19 @@
         async function updateServiceStatus() {
             const services = [
                 { 
-                    id: 'textgen', 
-                    url: `http://localhost:${config.textgenPort}`,
-                    name: 'Text Generation'
+                    id: 'localai', 
+                    url: `http://localhost:${config.localaiPort}/readyz`,
+                    name: 'LocalAI'
                 },
                 { 
-                    id: 'sd', 
-                    url: `http://localhost:${config.sdPort}`,
-                    name: 'Stable Diffusion'
+                    id: 'ollama', 
+                    url: `http://localhost:${config.ollamaPort}/`,
+                    name: 'Ollama'
                 },
                 { 
-                    id: 'api', 
-                    url: `http://localhost:${config.apiPort}/health`,
-                    name: 'FastAPI'
+                    id: 'forge', 
+                    url: `http://localhost:${config.forgePort}/`,
+                    name: 'Forge'
                 }
             ];
             
@@ -447,7 +469,7 @@
                 document.getElementById('gpu-grid').innerHTML = `
                     <div class="gpu-card">
                         <div class="gpu-name">GPU metrics unavailable</div>
-                        <p style="color: #666; font-size: 0.9rem;">Enable DCGM for GPU monitoring</p>
+                        <p style="color: #666; font-size: 0.9rem;">DCGM metrics service is running at port ${config.metricsPort}</p>
                     </div>
                 `;
             }
@@ -483,6 +505,14 @@
                         gpus[gpuId].memoryFree = parseInt(match[2]);
                     }
                 }
+                if (line.includes('DCGM_FI_DEV_POWER_USAGE') && !line.startsWith('#')) {
+                    const match = line.match(/gpu="(\d+)".*} ([\d.]+)/);
+                    if (match) {
+                        const gpuId = match[1];
+                        if (!gpus[gpuId]) gpus[gpuId] = {};
+                        gpus[gpuId].powerUsage = parseFloat(match[2]);
+                    }
+                }
             });
             
             return gpus;
@@ -514,6 +544,12 @@
                     <div class="progress-bar">
                         <div class="progress-fill" style="width: ${memoryPercent}%"></div>
                     </div>
+                    ${data.powerUsage ? `
+                    <div class="gpu-metric">
+                        <span>Power</span>
+                        <span>${data.powerUsage.toFixed(1)}W</span>
+                    </div>
+                    ` : ''}
                 `;
                 gpuGrid.appendChild(gpuCard);
             });
