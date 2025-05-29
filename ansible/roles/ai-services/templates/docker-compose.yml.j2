@@ -1,0 +1,181 @@
+services:
+  # Text Generation WebUI (LLM Chat Interface)
+  textgen-webui:
+    image: atinoda/text-generation-webui:default-nvidia
+    container_name: textgen-webui
+    ports:
+      - "{{ textgen_port }}:7860"
+    volumes:
+      - {{ ai_box_dir }}/textgen:/app/text-generation-webui
+      - {{ ai_box_dir }}/models:/app/text-generation-webui/models
+      - {{ ai_box_dir }}/outputs/textgen:/app/text-generation-webui/outputs
+    environment:
+      - EXTRA_LAUNCH_ARGS=--listen --api --gpu-memory {{ (gpu_memory | int * 0.4) | int }}
+      - CUDA_VISIBLE_DEVICES={{ textgen_gpus }}
+      - TZ=${TZ:-UTC}
+    deploy:
+      resources:
+        reservations:
+          devices:
+            - driver: nvidia
+              device_ids: ['{{ textgen_gpus.split(",") | join("','") }}']
+              capabilities: [gpu]
+    restart: unless-stopped
+    networks:
+      - ai-network
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:7860/"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 120s
+
+  # Stable Diffusion WebUI (Image Generation)
+  stablediffusion-webui:
+    image: universonic/stable-diffusion-webui:latest
+    container_name: stablediffusion-webui
+    ports:
+      - "{{ stablediffusion_port }}:7860"
+    volumes:
+      - {{ ai_box_dir }}/stablediffusion:/app/stable-diffusion-webui
+      - {{ ai_box_dir }}/models/sd:/app/stable-diffusion-webui/models
+      - {{ ai_box_dir }}/outputs/sd:/app/stable-diffusion-webui/outputs
+    environment:
+      - COMMANDLINE_ARGS=--listen --api --enable-insecure-extension-access --xformers --opt-split-attention
+      - CUDA_VISIBLE_DEVICES={{ sd_gpus }}
+      - TZ=${TZ:-UTC}
+    deploy:
+      resources:
+        reservations:
+          devices:
+            - driver: nvidia
+              device_ids: ['{{ sd_gpus.split(",") | join("','") }}']
+              capabilities: [gpu]
+    restart: unless-stopped
+    networks:
+      - ai-network
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:7860/"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 180s
+
+  # FastAPI LLM Inference Endpoint
+  fastapi-llm:
+    image: tiangolo/uvicorn-gunicorn-fastapi:python3.11
+    container_name: fastapi-llm
+    ports:
+      - "{{ fastapi_port }}:80"
+    volumes:
+      - {{ ai_box_dir }}/fastapi:/app
+      - {{ ai_box_dir }}/models:/app/models
+    environment:
+      - MODULE_NAME=main
+      - VARIABLE_NAME=app
+      - CUDA_VISIBLE_DEVICES={{ fastapi_gpus }}
+      - TZ=${TZ:-UTC}
+      - GPU_COUNT={{ gpu_count }}
+    deploy:
+      resources:
+        reservations:
+          devices:
+            - driver: nvidia
+{% if ',' in fastapi_gpus %}
+              device_ids: ['{{ fastapi_gpus.split(",") | join("','") }}']
+{% else %}
+              device_ids: ['{{ fastapi_gpus }}']
+{% endif %}
+              capabilities: [gpu]
+    restart: unless-stopped
+    networks:
+      - ai-network
+    depends_on:
+      - textgen-webui
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:80/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+
+{% if enable_dcgm %}
+  # NVIDIA DCGM GPU Metrics Exporter
+  dcgm-exporter:
+    image: nvcr.io/nvidia/k8s/dcgm-exporter:3.1.8-3.1.5-ubuntu20.04
+    container_name: dcgm-exporter
+    ports:
+      - "9400:9400"
+    environment:
+      - DCGM_EXPORTER_LISTEN=0.0.0.0:9400
+      - DCGM_EXPORTER_KUBERNETES=false
+    deploy:
+      resources:
+        reservations:
+          devices:
+            - driver: nvidia
+              capabilities: [gpu]
+    restart: unless-stopped
+    networks:
+      - ai-network
+    cap_add:
+      - SYS_ADMIN
+    security_opt:
+      - apparmor:unconfined
+{% endif %}
+
+{% if enable_dashboard %}
+  # Nginx Dashboard
+  nginx-dashboard:
+    image: nginx:alpine
+    container_name: nginx-dashboard
+    ports:
+      - "80:80"
+    volumes:
+      - {{ ai_box_dir }}/nginx/nginx.conf:/etc/nginx/nginx.conf:ro
+      - {{ ai_box_dir }}/nginx/html:/usr/share/nginx/html:ro
+    restart: unless-stopped
+    networks:
+      - ai-network
+    depends_on:
+      - textgen-webui
+      - stablediffusion-webui
+      - fastapi-llm
+{% endif %}
+
+{% if enable_watchtower %}
+  # Watchtower for automatic updates
+  watchtower:
+    image: containrrr/watchtower
+    container_name: watchtower
+    volumes:
+      - /var/run/docker.sock:/var/run/docker.sock
+    environment:
+      - WATCHTOWER_CLEANUP=true
+      - WATCHTOWER_POLL_INTERVAL=86400  # 24 hours
+      - WATCHTOWER_INCLUDE_STOPPED=false
+      - WATCHTOWER_MONITOR_ONLY=false
+      - WATCHTOWER_NOTIFICATIONS=email
+      - WATCHTOWER_NOTIFICATION_EMAIL_FROM=${WATCHTOWER_EMAIL_FROM:-}
+      - WATCHTOWER_NOTIFICATION_EMAIL_TO=${WATCHTOWER_EMAIL_TO:-}
+      - WATCHTOWER_NOTIFICATION_EMAIL_SERVER=${WATCHTOWER_EMAIL_SERVER:-}
+    restart: unless-stopped
+    networks:
+      - ai-network
+{% endif %}
+
+networks:
+  ai-network:
+    driver: bridge
+    ipam:
+      config:
+        - subnet: 172.20.0.0/16
+
+volumes:
+  textgen-data:
+    driver: local
+  stablediffusion-data:
+    driver: local
+  models-data:
+    driver: local
+  outputs-data:
+    driver: local
