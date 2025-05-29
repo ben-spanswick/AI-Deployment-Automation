@@ -191,17 +191,84 @@ docker exec ollama ollama list
 
 # Pull a model
 docker exec ollama ollama pull llama2
+docker exec ollama ollama pull mistral
+docker exec ollama ollama pull codellama
 
 # Run a model
 docker exec ollama ollama run llama2
 ```
 
-### Stable Diffusion Models
-Place in respective directories:
-- SD 1.5: `/opt/ai-box/models/stable-diffusion/`
-- SDXL: `/opt/ai-box/models/stable-diffusion/SDXL/`
-- LoRA: `/opt/ai-box/models/loras/`
-- VAE: `/opt/ai-box/models/vae/`
+### Stable Diffusion Models - Detailed Guide
+
+#### Model Directories:
+- **Checkpoints**: `/opt/ai-box/models/stable-diffusion/`
+- **SDXL Models**: `/opt/ai-box/models/stable-diffusion/SDXL/`
+- **LoRA**: `/opt/ai-box/models/loras/`
+- **VAE**: `/opt/ai-box/models/vae/`
+- **Embeddings**: `/opt/ai-box/models/embeddings/`
+
+#### Installing SD 1.5 Models:
+```bash
+# Navigate to models directory
+cd /opt/ai-box/models/stable-diffusion/
+
+# Download popular SD 1.5 models
+# Realistic Vision
+wget https://civitai.com/api/download/models/130072 -O realisticVision_v51.safetensors
+
+# DreamShaper
+wget https://civitai.com/api/download/models/128713 -O dreamshaper_8.safetensors
+
+# Or from Hugging Face
+wget https://huggingface.co/runwayml/stable-diffusion-v1-5/resolve/main/v1-5-pruned.safetensors
+```
+
+#### Installing SDXL Models:
+```bash
+cd /opt/ai-box/models/stable-diffusion/SDXL/
+
+# SDXL Base
+wget https://huggingface.co/stabilityai/stable-diffusion-xl-base-1.0/resolve/main/sd_xl_base_1.0.safetensors
+
+# SDXL Refiner (optional)
+wget https://huggingface.co/stabilityai/stable-diffusion-xl-refiner-1.0/resolve/main/sd_xl_refiner_1.0.safetensors
+```
+
+#### Installing LoRA Models:
+```bash
+cd /opt/ai-box/models/loras/
+
+# Example: Detail Tweaker LoRA
+wget https://civitai.com/api/download/models/135867 -O add_detail.safetensors
+```
+
+#### Installing VAE:
+```bash
+cd /opt/ai-box/models/vae/
+
+# Recommended VAE for better colors
+wget https://huggingface.co/stabilityai/sd-vae-ft-mse-original/resolve/main/vae-ft-mse-840000-ema-pruned.safetensors
+```
+
+#### Using Models in Forge:
+1. Access Forge at `http://your-server-ip:7860`
+2. Click the refresh button next to the model dropdown
+3. Select your model from the dropdown
+4. For LoRA: Look for the LoRA tab in the interface
+5. For VAE: Settings → VAE dropdown
+
+#### Model Recommendations:
+- **Photorealistic**: Realistic Vision, Deliberate, DreamShaper
+- **Anime**: Anything V5, Counterfeit, Meinmix
+- **Artistic**: DreamShaper, RevAnimated, NeverEnding Dream
+- **SDXL**: Use for higher quality 1024x1024 base resolution
+
+#### Tips:
+- `.safetensors` format is preferred (safer and faster)
+- Most models are 2-7GB in size
+- SDXL models are larger (~6.5GB)
+- Check [Civitai](https://civitai.com) for community models
+- Check [Hugging Face](https://huggingface.co/models?other=stable-diffusion) for official models
 
 ## 🔍 Troubleshooting
 
@@ -412,15 +479,36 @@ with open('output.png', 'wb') as f:
 
 This project is licensed under the MIT License.
 
-## 🙏 Acknowledgments
+## 🙏 Acknowledgments & Project Links
 
-- [LocalAI](https://localai.io/) - OpenAI-compatible local inference
-- [Ollama](https://ollama.ai/) - Simple model management
-- [Stable Diffusion WebUI Forge](https://github.com/lllyasviel/stable-diffusion-webui-forge) - Optimized SD interface
-- [NVIDIA Container Toolkit](https://github.com/NVIDIA/nvidia-container-toolkit) - GPU container support
+This project leverages several amazing open-source AI projects:
+
+### Core Services:
+- **[LocalAI](https://github.com/mudler/LocalAI)** - Drop-in OpenAI API replacement that runs locally
+  - [Documentation](https://localai.io/)
+  - [Model Gallery](https://github.com/mudler/LocalAI/tree/master/gallery)
+
+- **[Ollama](https://github.com/jmorganca/ollama)** - Run LLMs locally with a simple CLI
+  - [Official Website](https://ollama.ai/)
+  - [Model Library](https://ollama.ai/library)
+
+- **[Stable Diffusion WebUI Forge](https://github.com/lllyasviel/stable-diffusion-webui-forge)** - Next-gen SD WebUI
+  - Built on [AUTOMATIC1111's WebUI](https://github.com/AUTOMATIC1111/stable-diffusion-webui)
+  - [Forge Specific Features](https://github.com/lllyasviel/stable-diffusion-webui-forge#forge)
+
+### Supporting Projects:
+- **[NVIDIA Container Toolkit](https://github.com/NVIDIA/nvidia-container-toolkit)** - GPU support in containers
+- **[NVIDIA DCGM](https://github.com/NVIDIA/DCGM)** - GPU monitoring and metrics
+
+### Model Resources:
+- **[Hugging Face](https://huggingface.co/)** - Model repository and community
+- **[Civitai](https://civitai.com/)** - Community-driven SD model sharing
+- **[TheBloke](https://huggingface.co/TheBloke)** - Quantized LLM models
+
+### Related Projects:
+- **[Stable Diffusion](https://github.com/CompVis/stable-diffusion)** - Original SD repository
+- **[SDXL](https://github.com/Stability-AI/generative-models)** - Stable Diffusion XL
 
 ---
-
-**Need help?** Check the troubleshooting section or open an issue!
 
 **Built with ❤️ for the AI community**

@@ -1,4 +1,4 @@
-<!DOCTYPE html>
+1<!DOCTYPE html>
 <html lang="en">
 <head>
     <meta charset="UTF-8">
@@ -603,8 +603,8 @@
         updateServiceStatus();
         fetchGPUMetrics();
         
-        setInterval(updateServiceStatus, 30000); // Every 30 seconds
-        setInterval(fetchGPUMetrics, 5000); // Every 5 seconds
+        setInterval(updateServiceStatus, 30000); // Every 30 seconds for services
+        setInterval(fetchGPUMetrics, 1000); // Every 1 second for GPU metrics
     </script>
 </body>
 </html>
