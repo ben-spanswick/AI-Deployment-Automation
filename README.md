@@ -45,8 +45,8 @@
 ### 1. Clone the Repository
 
 ```bash
-git clone http://192.168.100.54:3000/Mandrake/AI-Deployment.git
-cd AI-Deployment
+git clone https://github.com/ben-spanswick/AI-Deployment-Automation.git
+cd AI-Deployment-Automation
 ```
 
 ### 2. Make Setup Executable
