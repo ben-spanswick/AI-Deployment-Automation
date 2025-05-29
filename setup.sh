@@ -89,8 +89,8 @@ detect_os() {
         exit 1
     fi
     
-    if [[ "$OS" != "ubuntu" ]] || [[ ! "$VER" =~ ^(20\.04|22\.04)$ ]]; then
-        error "This script requires Ubuntu 20.04 or 22.04"
+    if [[ "$OS" != "ubuntu" ]] || [[ ! "$VER" =~ ^(20\.04|22\.04|24\.04)$ ]]; then
+        error "This script requires Ubuntu 20.04, 22.04, or 24.04"
         error "Detected: $OS $VER"
         exit 1
     fi
