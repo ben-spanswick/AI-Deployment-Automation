@@ -70,6 +70,135 @@ check_state() {
     [[ "$state" == "completed" ]]
 }
 
+# Create directory structure
+create_directory_structure() {
+    log "Creating AI Box directory structure..."
+    
+    local dirs=(
+        "/opt/ai-box"
+        "/opt/ai-box/models"
+        "/opt/ai-box/models/stable-diffusion"
+        "/opt/ai-box/models/stable-diffusion/SDXL"
+        "/opt/ai-box/models/loras"
+        "/opt/ai-box/models/vae"
+        "/opt/ai-box/models/embeddings"
+        "/opt/ai-box/outputs"
+        "/opt/ai-box/outputs/forge"
+        "/opt/ai-box/nginx"
+        "/opt/ai-box/nginx/html"
+    )
+    
+    for dir in "${dirs[@]}"; do
+        if [[ ! -d "$dir" ]]; then
+            sudo mkdir -p "$dir"
+            sudo chown -R $USER:$USER "$dir"
+            log "Created: $dir"
+        else
+            skip "Directory exists: $dir"
+        fi
+    done
+    
+    success "Directory structure ready"
+}
+
+# Clean up temporary files
+cleanup_temp_files() {
+    log "Cleaning up temporary files..."
+    
+    # Remove any temporary files created during deployment
+    local temp_files=(
+        "${SCRIPT_DIR}/ansible/*.retry"
+        "${SCRIPT_DIR}/.ansible-*"
+        "/tmp/ai-box-*"
+    )
+    
+    for pattern in "${temp_files[@]}"; do
+        if ls $pattern 2>/dev/null | grep -q .; then
+            rm -f $pattern
+            log "Removed: $pattern"
+        fi
+    done
+    
+    success "Cleanup completed"
+}
+
+# Check if resuming after reboot
+check_resume_after_reboot() {
+    if [[ "$(get_state 'resume_after_reboot')" == "true" ]]; then
+        log "Resuming deployment after reboot..."
+        
+        # Check if driver is now working
+        if check_nvidia_driver; then
+            success "NVIDIA driver loaded successfully!"
+            save_state "nvidia_driver" "completed"
+            save_state "resume_after_reboot" "false"
+            save_state "needs_reboot" "false"
+        else
+            error "NVIDIA driver still not functional after reboot"
+            error "Please check driver installation and try again"
+            exit 1
+        fi
+    fi
+}
+
+# Handle NVIDIA driver installation
+handle_nvidia_driver_install() {
+    if check_state "nvidia_driver" || check_nvidia_driver; then
+        skip "NVIDIA driver already installed and loaded"
+        save_state "nvidia_driver" "completed"
+        return 0
+    fi
+    
+    warn "NVIDIA driver installation required"
+    echo
+    echo "Installing NVIDIA drivers requires a system reboot to load the kernel modules."
+    echo "After installation, you will need to:"
+    echo "  1. Reboot your system"
+    echo "  2. Run this script again to continue deployment"
+    echo
+    read -p "Install NVIDIA drivers now? [Y/n]: " -n 1 -r
+    echo
+    
+    if [[ ! $REPLY =~ ^[Yy]$ ]]; then
+        error "NVIDIA drivers are required. Exiting."
+        exit 1
+    fi
+    
+    # Mark that we need reboot after driver install
+    save_state "needs_reboot" "true"
+    
+    # Install drivers (via ansible or direct)
+    case $DEPLOY_METHOD in
+        ansible)
+            cd "${SCRIPT_DIR}/ansible"
+            ansible-playbook -i inventory.yml playbook.yml --tags nvidia -v
+            ;;
+        *)
+            error "Please use Ansible deployment method for initial system setup"
+            exit 1
+            ;;
+    esac
+    
+    save_state "nvidia_driver" "installed_needs_reboot"
+    
+    echo
+    echo -e "${YELLOW}${BOLD}=== REBOOT REQUIRED ===${NC}"
+    echo
+    echo "NVIDIA drivers have been installed but require a reboot to load."
+    echo
+    echo "Please:"
+    echo "  1. Save any work and close applications"
+    echo "  2. Reboot your system: ${BOLD}sudo reboot${NC}"
+    echo "  3. After reboot, run: ${BOLD}cd $(pwd) && ./setup.sh${NC}"
+    echo
+    echo "The script will resume from where it left off."
+    echo
+    
+    # Save progress
+    save_state "resume_after_reboot" "true"
+    exit 0
+}
+
 # System checks
 check_root() {
     if [[ $EUID -eq 0 ]]; then
@@ -543,12 +672,13 @@ run_deployment() {
         exit 0
     fi
     
-    # Handle service removal if requested
+    # Remove existing services if requested
     if [[ "${REMOVE_SERVICES:-false}" == "true" ]]; then
         log "Removing existing services..."
         if [[ -f "/opt/ai-box/docker-compose.yml" ]]; then
             cd /opt/ai-box
             docker compose down -v || true
+            cd - > /dev/null
         fi
     fi
     
