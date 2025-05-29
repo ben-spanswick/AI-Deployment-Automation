@@ -311,7 +311,7 @@
                 </div>
                 <a href="/localai" class="btn" target="_blank">Open WebUI</a>
                 <div class="api-examples">
-                    API: <code>http://localhost:8080/v1/completions</code>
+                    API: <code id="localai-api-url">http://localhost:8080/v1/completions</code>
                 </div>
             </div>
             
@@ -340,9 +340,9 @@
                         <span class="info-value" id="ollama-gpu">GPU 0,1</span>
                     </div>
                 </div>
-                <a href="http://localhost:11434" class="btn" target="_blank">API Endpoint</a>
+                <a href="#" class="btn" id="ollama-link" target="_blank">API Endpoint</a>
                 <div class="api-examples">
-                    CLI: <code>ollama run llama2</code>
+                    CLI: <code>docker exec ollama ollama run llama2</code>
                 </div>
             </div>
             
@@ -373,7 +373,7 @@
                 </div>
                 <a href="/forge" class="btn" target="_blank">Open WebUI</a>
                 <div class="api-examples">
-                    API: <code>http://localhost:7860/sdapi/v1/txt2img</code>
+                    API: <code id="forge-api-url">http://localhost:7860/sdapi/v1/txt2img</code>
                 </div>
             </div>
         </div>
@@ -393,8 +393,13 @@
     </footer>
     
     <script>
+        // Get the server hostname/IP from the current page URL
+        const serverHost = window.location.hostname || 'localhost';
+        const serverProtocol = window.location.protocol;
+        
         // Configuration from environment
         const config = {
+            serverUrl: `${serverProtocol}//${serverHost}`,
             localaiPort: window.LOCALAI_PORT || '8080',
             ollamaPort: window.OLLAMA_PORT || '11434',
             forgePort: window.FORGE_PORT || '7860',
@@ -406,16 +411,25 @@
         document.getElementById('ollama-port').textContent = config.ollamaPort;
         document.getElementById('forge-port').textContent = config.forgePort;
         
+        // Update links to use actual server
+        document.querySelectorAll('a.btn').forEach(link => {
+            const href = link.getAttribute('href');
+            if (href.startsWith('/')) {
+                link.href = `${config.serverUrl}${href}`;
+            }
+        });
+        
         // Service health check
         async function checkServiceHealth(service, url) {
             try {
                 const response = await fetch(url, { 
                     method: 'GET',
-                    mode: 'no-cors',
+                    mode: 'cors',
                     cache: 'no-cache'
                 });
-                return true;
+                return response.ok;
             } catch (error) {
+                console.error(`Health check failed for ${service}:`, error);
                 return false;
             }
         }
@@ -424,32 +438,41 @@
             const services = [
                 { 
                     id: 'localai', 
-                    url: `http://localhost:${config.localaiPort}/readyz`,
+                    url: `${config.serverUrl}:${config.localaiPort}/readyz`,
+                    fallbackUrl: `${config.serverUrl}:${config.localaiPort}/`,
                     name: 'LocalAI'
                 },
                 { 
                     id: 'ollama', 
-                    url: `http://localhost:${config.ollamaPort}/`,
+                    url: `${config.serverUrl}:${config.ollamaPort}/`,
                     name: 'Ollama'
                 },
                 { 
                     id: 'forge', 
-                    url: `http://localhost:${config.forgePort}/`,
+                    url: `${config.serverUrl}:${config.forgePort}/`,
                     name: 'Forge'
                 }
             ];
             
             for (const service of services) {
-                const isOnline = await checkServiceHealth(service.id, service.url);
+                let isOnline = await checkServiceHealth(service.id, service.url);
+                
+                // Try fallback URL if primary fails
+                if (!isOnline && service.fallbackUrl) {
+                    isOnline = await checkServiceHealth(service.id, service.fallbackUrl);
+                }
+                
                 const statusEl = document.getElementById(`${service.id}-status`);
                 const statusTextEl = document.getElementById(`${service.id}-status-text`);
                 
-                if (isOnline) {
-                    statusEl.className = 'status-indicator status-online';
-                    statusTextEl.textContent = 'Online';
-                } else {
-                    statusEl.className = 'status-indicator status-offline';
-                    statusTextEl.textContent = 'Offline';
+                if (statusEl && statusTextEl) {
+                    if (isOnline) {
+                        statusEl.className = 'status-indicator status-online';
+                        statusTextEl.textContent = 'Online';
+                    } else {
+                        statusEl.className = 'status-indicator status-offline';
+                        statusTextEl.textContent = 'Offline';
+                    }
                 }
             }
         }
@@ -457,7 +480,7 @@
         // GPU metrics fetching
         async function fetchGPUMetrics() {
             try {
-                const response = await fetch(`http://localhost:${config.metricsPort}/metrics`);
+                const response = await fetch(`${config.serverUrl}:${config.metricsPort}/metrics`);
                 if (!response.ok) throw new Error('Metrics not available');
                 
                 const text = await response.text();
@@ -466,10 +489,23 @@
                 updateGPUDisplay(gpuData);
             } catch (error) {
                 console.error('Failed to fetch GPU metrics:', error);
+                // Try through proxy
+                try {
+                    const proxyResponse = await fetch(`${config.serverUrl}/metrics`);
+                    if (proxyResponse.ok) {
+                        const text = await proxyResponse.text();
+                        const gpuData = parsePrometheusMetrics(text);
+                        updateGPUDisplay(gpuData);
+                        return;
+                    }
+                } catch (proxyError) {
+                    console.error('Proxy metrics also failed:', proxyError);
+                }
+                
                 document.getElementById('gpu-grid').innerHTML = `
                     <div class="gpu-card">
                         <div class="gpu-name">GPU metrics unavailable</div>
-                        <p style="color: #666; font-size: 0.9rem;">DCGM metrics service is running at port ${config.metricsPort}</p>
+                        <p style="color: #666; font-size: 0.9rem;">DCGM metrics service may not be accessible from: ${serverHost}</p>
                     </div>
                 `;
             }
@@ -562,6 +598,29 @@
                 `;
             }
         }
+        
+        // Update dynamic URLs
+        document.addEventListener('DOMContentLoaded', function() {
+            // Update API URLs
+            const localaiApiEl = document.getElementById('localai-api-url');
+            if (localaiApiEl) {
+                localaiApiEl.textContent = `${config.serverUrl}:${config.localaiPort}/v1/completions`;
+            }
+            
+            const forgeApiEl = document.getElementById('forge-api-url');
+            if (forgeApiEl) {
+                forgeApiEl.textContent = `${config.serverUrl}:${config.forgePort}/sdapi/v1/txt2img`;
+            }
+            
+            // Update Ollama link
+            const ollamaLink = document.getElementById('ollama-link');
+            if (ollamaLink) {
+                ollamaLink.href = `${config.serverUrl}:${config.ollamaPort}`;
+            }
+            
+            // Show server info
+            console.log(`Dashboard connected to server: ${serverHost}`);
+        });
         
         // Initial load and periodic updates
         updateServiceStatus();
