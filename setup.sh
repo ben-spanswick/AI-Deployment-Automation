@@ -98,6 +98,23 @@ create_directory_structure() {
         fi
     done
     
+    # Copy dashboard HTML if it exists
+    if [[ -f "${SCRIPT_DIR}/ansible/files/dashboard.html" ]]; then
+        sudo cp "${SCRIPT_DIR}/ansible/files/dashboard.html" /opt/ai-box/nginx/html/index.html
+        log "Copied dashboard HTML"
+    else
+        warn "Dashboard HTML not found in ansible/files/"
+    fi
+    
+    # Copy nginx config if it exists
+    if [[ -f "${SCRIPT_DIR}/docker/nginx/nginx.conf" ]]; then
+        sudo cp "${SCRIPT_DIR}/docker/nginx/nginx.conf" /opt/ai-box/nginx/nginx.conf
+        log "Copied nginx configuration"
+    elif [[ -f "${SCRIPT_DIR}/docker/configs/nginx/nginx.conf" ]]; then
+        sudo cp "${SCRIPT_DIR}/docker/configs/nginx/nginx.conf" /opt/ai-box/nginx/nginx.conf
+        log "Copied nginx configuration"
+    fi
+    
     success "Directory structure ready"
 }
 
@@ -698,8 +715,26 @@ run_deployment() {
             fi
             
             # Deploy services
-            ansible-playbook -i inventory.yml playbook.yml --tags services -v
+            if [[ "${RESTART_SERVICES:-false}" == "true" ]]; then
+                log "Restarting services with new configuration..."
+                cd /opt/ai-box
+                docker compose restart
+            else
+                ansible-playbook -i inventory.yml playbook.yml --tags services -v
+            fi
             save_state "services" "completed"
+            
+            # Ensure nginx dashboard is running
+            if ! docker ps -q -f name="nginx-dashboard" | grep -q .; then
+                log "Starting nginx dashboard..."
+                docker run -d \
+                  --name nginx-dashboard \
+                  --network ai-network \
+                  -p 80:80 \
+                  -v /opt/ai-box/nginx/nginx.conf:/etc/nginx/nginx.conf:ro \
+                  -v /opt/ai-box/nginx/html:/usr/share/nginx/html:ro \
+                  nginx:alpine
+            fi
             ;;
             
         docker)
@@ -719,6 +754,18 @@ run_deployment() {
                 docker compose up -d
             fi
             save_state "services" "completed"
+            
+            # Ensure nginx dashboard is running if enabled
+            if [[ "$ENABLE_DASHBOARD" == "true" ]] && ! docker ps -q -f name="nginx-dashboard" | grep -q .; then
+                log "Starting nginx dashboard..."
+                docker run -d \
+                  --name nginx-dashboard \
+                  --network ai-network \
+                  -p 80:80 \
+                  -v /opt/ai-box/nginx/nginx.conf:/etc/nginx/nginx.conf:ro \
+                  -v /opt/ai-box/nginx/html:/usr/share/nginx/html:ro \
+                  nginx:alpine
+            fi
             ;;
             
         hybrid)
