@@ -1,0 +1,105 @@
+---
+- name: Deploy AI Box - Dynamic Multi-GPU Workstation
+  hosts: ai_boxes
+  become: yes
+  gather_facts: yes
+  
+  pre_tasks:
+    - name: Display deployment configuration
+      debug:
+        msg: |
+          Deploying AI Box with:
+            - {{ gpu_count }} GPU(s): {{ gpu_model }}
+            - Text Generation on GPU(s): {{ textgen_gpus }}
+            - Stable Diffusion on GPU(s): {{ sd_gpus }}
+            - FastAPI on GPU(s): {{ fastapi_gpus }}
+          
+    - name: Confirm deployment
+      pause:
+        prompt: "Press Enter to continue with deployment or Ctrl+C to abort"
+      when: ansible_connection != "local"
+      tags: always
+
+  roles:
+    - role: nvidia-setup
+      tags: [system, nvidia]
+      when: gpu_count | int > 0
+      
+    - role: docker-setup
+      tags: [system, docker]
+      
+    - role: ai-services
+      tags: [services, ai]
+
+  post_tasks:
+    - name: Run health checks
+      include_tasks: tasks/health-checks.yml
+      tags: [always, health]
+      
+    - name: Display access information
+      debug:
+        msg: |
+          ✅ AI Box deployment complete!
+          
+          Access your services:
+            Text Generation: http://{{ ansible_host }}:{{ textgen_port }}
+            Stable Diffusion: http://{{ ansible_host }}:{{ stablediffusion_port }}
+            API Documentation: http://{{ ansible_host }}:{{ fastapi_port }}/docs
+            {% if enable_dcgm %}GPU Metrics: http://{{ ansible_host }}:9400/metrics{% endif %}
+            {% if enable_dashboard %}Dashboard: http://{{ ansible_host }}{% endif %}
+          
+          SSH: ssh {{ ansible_user }}@{{ ansible_host }}
+      tags: always
+
+# Health check tasks
+- name: tasks/health-checks.yml content
+  hosts: localhost
+  gather_facts: no
+  tasks:
+    - name: Create health check tasks file
+      copy:
+        content: |
+          ---
+          - name: Wait for Docker daemon
+            systemd:
+              name: docker
+              state: started
+            register: docker_status
+            until: docker_status is succeeded
+            retries: 5
+            delay: 10
+
+          - name: Check GPU availability in Docker
+            command: docker run --rm --gpus all nvidia/cuda:11.8-base-ubuntu20.04 nvidia-smi
+            register: gpu_check
+            changed_when: false
+            failed_when: false
+
+          - name: Display GPU check results
+            debug:
+              msg: "{{ gpu_check.stdout_lines }}"
+            when: gpu_check.rc == 0
+
+          - name: Check service health endpoints
+            uri:
+              url: "http://{{ ansible_host }}:{{ item.port }}{{ item.path | default('') }}"
+              method: GET
+              timeout: 30
+            loop:
+              - { name: "Text Generation", port: "{{ textgen_port }}", path: "/" }
+              - { name: "Stable Diffusion", port: "{{ stablediffusion_port }}", path: "/" }
+              - { name: "FastAPI", port: "{{ fastapi_port }}", path: "/health" }
+            loop_control:
+              label: "{{ item.name }}"
+            register: health_checks
+            failed_when: false
+            retries: 3
+            delay: 10
+
+          - name: Report service status
+            debug:
+              msg: |
+                {{ item.item.name }}: {{ 'Available' if item.status == 200 else 'Not responding (may still be starting)' }}
+            loop: "{{ health_checks.results }}"
+            loop_control:
+              label: "{{ item.item.name }}"
