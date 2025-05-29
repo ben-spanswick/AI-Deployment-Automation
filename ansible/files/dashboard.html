@@ -147,4 +147,392 @@
             height: 8px;
             border-radius: 50%;
             margin-right: 0.5rem;
-            animation:
+            animation: pulse 2s infinite;
+        }
+        
+        .status-online {
+            background: #00ff88;
+        }
+        
+        .status-offline {
+            background: #ff4444;
+        }
+        
+        .status-loading {
+            background: #ffaa00;
+        }
+        
+        @keyframes pulse {
+            0%, 100% { opacity: 1; }
+            50% { opacity: 0.5; }
+        }
+        
+        .btn {
+            display: inline-block;
+            padding: 0.75rem 1.5rem;
+            background: linear-gradient(135deg, #00ff88 0%, #00b4d8 100%);
+            color: #000;
+            text-decoration: none;
+            border-radius: 8px;
+            font-weight: 600;
+            transition: all 0.3s ease;
+            text-align: center;
+        }
+        
+        .btn:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 5px 20px rgba(0,255,136,0.4);
+        }
+        
+        .gpu-stats {
+            background: #0a0a0a;
+            border-radius: 8px;
+            padding: 1.5rem;
+            margin-top: 2rem;
+        }
+        
+        .gpu-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(250px, 1fr));
+            gap: 1rem;
+            margin-top: 1rem;
+        }
+        
+        .gpu-card {
+            background: #1a1a2e;
+            border: 1px solid #2a2a3e;
+            border-radius: 8px;
+            padding: 1rem;
+        }
+        
+        .gpu-name {
+            font-weight: 600;
+            margin-bottom: 0.5rem;
+            color: #00ff88;
+        }
+        
+        .gpu-metric {
+            display: flex;
+            justify-content: space-between;
+            margin: 0.5rem 0;
+            font-size: 0.9rem;
+        }
+        
+        .progress-bar {
+            width: 100%;
+            height: 6px;
+            background: #2a2a3e;
+            border-radius: 3px;
+            margin-top: 0.25rem;
+            overflow: hidden;
+        }
+        
+        .progress-fill {
+            height: 100%;
+            background: linear-gradient(90deg, #00ff88, #00b4d8);
+            transition: width 0.3s ease;
+        }
+        
+        footer {
+            background: #1a1a2e;
+            padding: 2rem;
+            text-align: center;
+            color: #666;
+            border-top: 1px solid #2a2a3e;
+        }
+        
+        .error-message {
+            background: rgba(255,68,68,0.1);
+            border: 1px solid #ff4444;
+            color: #ff4444;
+            padding: 1rem;
+            border-radius: 8px;
+            margin: 1rem 0;
+            display: none;
+        }
+        
+        @media (max-width: 768px) {
+            .services-grid {
+                grid-template-columns: 1fr;
+            }
+            h1 {
+                font-size: 2rem;
+            }
+        }
+    </style>
+</head>
+<body>
+    <header>
+        <h1>🤖 AI Box Dashboard</h1>
+        <p class="subtitle">Multi-GPU AI Workstation Control Center</p>
+    </header>
+    
+    <main>
+        <div id="error-message" class="error-message"></div>
+        
+        <div class="services-grid">
+            <div class="service-card">
+                <div class="service-header">
+                    <div class="service-icon">💬</div>
+                    <h2 class="service-name">Text Generation</h2>
+                </div>
+                <p class="service-description">
+                    Large Language Model chat interface powered by Oobabooga's WebUI
+                </p>
+                <div class="service-info">
+                    <div class="info-row">
+                        <span class="info-label">Status</span>
+                        <span class="info-value">
+                            <span class="status-indicator status-loading" id="textgen-status"></span>
+                            <span id="textgen-status-text">Checking...</span>
+                        </span>
+                    </div>
+                    <div class="info-row">
+                        <span class="info-label">Port</span>
+                        <span class="info-value" id="textgen-port">8080</span>
+                    </div>
+                    <div class="info-row">
+                        <span class="info-label">GPU</span>
+                        <span class="info-value" id="textgen-gpu">GPU 0</span>
+                    </div>
+                </div>
+                <a href="/textgen" class="btn" target="_blank">Open Interface</a>
+            </div>
+            
+            <div class="service-card">
+                <div class="service-header">
+                    <div class="service-icon">🎨</div>
+                    <h2 class="service-name">Stable Diffusion</h2>
+                </div>
+                <p class="service-description">
+                    AI image generation with advanced models and controls
+                </p>
+                <div class="service-info">
+                    <div class="info-row">
+                        <span class="info-label">Status</span>
+                        <span class="info-value">
+                            <span class="status-indicator status-loading" id="sd-status"></span>
+                            <span id="sd-status-text">Checking...</span>
+                        </span>
+                    </div>
+                    <div class="info-row">
+                        <span class="info-label">Port</span>
+                        <span class="info-value" id="sd-port">8081</span>
+                    </div>
+                    <div class="info-row">
+                        <span class="info-label">GPU</span>
+                        <span class="info-value" id="sd-gpu">GPU 1</span>
+                    </div>
+                </div>
+                <a href="/sd" class="btn" target="_blank">Open Interface</a>
+            </div>
+            
+            <div class="service-card">
+                <div class="service-header">
+                    <div class="service-icon">🚀</div>
+                    <h2 class="service-name">FastAPI</h2>
+                </div>
+                <p class="service-description">
+                    REST API endpoint for programmatic AI inference
+                </p>
+                <div class="service-info">
+                    <div class="info-row">
+                        <span class="info-label">Status</span>
+                        <span class="info-value">
+                            <span class="status-indicator status-loading" id="api-status"></span>
+                            <span id="api-status-text">Checking...</span>
+                        </span>
+                    </div>
+                    <div class="info-row">
+                        <span class="info-label">Port</span>
+                        <span class="info-value" id="api-port">8000</span>
+                    </div>
+                    <div class="info-row">
+                        <span class="info-label">GPU</span>
+                        <span class="info-value" id="api-gpu">GPU 0,1</span>
+                    </div>
+                </div>
+                <a href="/api/docs" class="btn" target="_blank">API Documentation</a>
+            </div>
+        </div>
+        
+        <div class="gpu-stats">
+            <h3>GPU Statistics</h3>
+            <div class="gpu-grid" id="gpu-grid">
+                <div class="gpu-card">
+                    <div class="gpu-name">Loading GPU data...</div>
+                </div>
+            </div>
+        </div>
+    </main>
+    
+    <footer>
+        <p>AI Box Dashboard | <a href="/metrics" style="color: #00ff88;">GPU Metrics</a> | <a href="https://github.com" style="color: #00ff88;">Documentation</a></p>
+    </footer>
+    
+    <script>
+        // Configuration from environment
+        const config = {
+            textgenPort: window.TEXTGEN_PORT || '8080',
+            sdPort: window.SD_PORT || '8081',
+            apiPort: window.API_PORT || '8000',
+            metricsPort: window.METRICS_PORT || '9400'
+        };
+        
+        // Update port displays
+        document.getElementById('textgen-port').textContent = config.textgenPort;
+        document.getElementById('sd-port').textContent = config.sdPort;
+        document.getElementById('api-port').textContent = config.apiPort;
+        
+        // Service health check
+        async function checkServiceHealth(service, url) {
+            try {
+                const response = await fetch(url, { 
+                    method: 'GET',
+                    mode: 'no-cors',
+                    cache: 'no-cache'
+                });
+                return true;
+            } catch (error) {
+                return false;
+            }
+        }
+        
+        async function updateServiceStatus() {
+            const services = [
+                { 
+                    id: 'textgen', 
+                    url: `http://localhost:${config.textgenPort}`,
+                    name: 'Text Generation'
+                },
+                { 
+                    id: 'sd', 
+                    url: `http://localhost:${config.sdPort}`,
+                    name: 'Stable Diffusion'
+                },
+                { 
+                    id: 'api', 
+                    url: `http://localhost:${config.apiPort}/health`,
+                    name: 'FastAPI'
+                }
+            ];
+            
+            for (const service of services) {
+                const isOnline = await checkServiceHealth(service.id, service.url);
+                const statusEl = document.getElementById(`${service.id}-status`);
+                const statusTextEl = document.getElementById(`${service.id}-status-text`);
+                
+                if (isOnline) {
+                    statusEl.className = 'status-indicator status-online';
+                    statusTextEl.textContent = 'Online';
+                } else {
+                    statusEl.className = 'status-indicator status-offline';
+                    statusTextEl.textContent = 'Offline';
+                }
+            }
+        }
+        
+        // GPU metrics fetching
+        async function fetchGPUMetrics() {
+            try {
+                const response = await fetch(`http://localhost:${config.metricsPort}/metrics`);
+                if (!response.ok) throw new Error('Metrics not available');
+                
+                const text = await response.text();
+                // Parse Prometheus metrics format
+                const gpuData = parsePrometheusMetrics(text);
+                updateGPUDisplay(gpuData);
+            } catch (error) {
+                console.error('Failed to fetch GPU metrics:', error);
+                document.getElementById('gpu-grid').innerHTML = `
+                    <div class="gpu-card">
+                        <div class="gpu-name">GPU metrics unavailable</div>
+                        <p style="color: #666; font-size: 0.9rem;">Enable DCGM for GPU monitoring</p>
+                    </div>
+                `;
+            }
+        }
+        
+        function parsePrometheusMetrics(text) {
+            // Simple parser for DCGM metrics
+            const gpus = {};
+            const lines = text.split('\n');
+            
+            lines.forEach(line => {
+                if (line.includes('DCGM_FI_DEV_GPU_UTIL') && !line.startsWith('#')) {
+                    const match = line.match(/gpu="(\d+)".*} (\d+)/);
+                    if (match) {
+                        const gpuId = match[1];
+                        if (!gpus[gpuId]) gpus[gpuId] = {};
+                        gpus[gpuId].utilization = parseInt(match[2]);
+                    }
+                }
+                if (line.includes('DCGM_FI_DEV_FB_USED') && !line.startsWith('#')) {
+                    const match = line.match(/gpu="(\d+)".*} (\d+)/);
+                    if (match) {
+                        const gpuId = match[1];
+                        if (!gpus[gpuId]) gpus[gpuId] = {};
+                        gpus[gpuId].memoryUsed = parseInt(match[2]);
+                    }
+                }
+                if (line.includes('DCGM_FI_DEV_FB_FREE') && !line.startsWith('#')) {
+                    const match = line.match(/gpu="(\d+)".*} (\d+)/);
+                    if (match) {
+                        const gpuId = match[1];
+                        if (!gpus[gpuId]) gpus[gpuId] = {};
+                        gpus[gpuId].memoryFree = parseInt(match[2]);
+                    }
+                }
+            });
+            
+            return gpus;
+        }
+        
+        function updateGPUDisplay(gpuData) {
+            const gpuGrid = document.getElementById('gpu-grid');
+            gpuGrid.innerHTML = '';
+            
+            Object.entries(gpuData).forEach(([gpuId, data]) => {
+                const totalMemory = (data.memoryUsed || 0) + (data.memoryFree || 0);
+                const memoryPercent = totalMemory > 0 ? (data.memoryUsed / totalMemory) * 100 : 0;
+                
+                const gpuCard = document.createElement('div');
+                gpuCard.className = 'gpu-card';
+                gpuCard.innerHTML = `
+                    <div class="gpu-name">GPU ${gpuId}</div>
+                    <div class="gpu-metric">
+                        <span>Utilization</span>
+                        <span>${data.utilization || 0}%</span>
+                    </div>
+                    <div class="progress-bar">
+                        <div class="progress-fill" style="width: ${data.utilization || 0}%"></div>
+                    </div>
+                    <div class="gpu-metric">
+                        <span>Memory</span>
+                        <span>${Math.round(memoryPercent)}%</span>
+                    </div>
+                    <div class="progress-bar">
+                        <div class="progress-fill" style="width: ${memoryPercent}%"></div>
+                    </div>
+                `;
+                gpuGrid.appendChild(gpuCard);
+            });
+            
+            if (Object.keys(gpuData).length === 0) {
+                gpuGrid.innerHTML = `
+                    <div class="gpu-card">
+                        <div class="gpu-name">No GPU data available</div>
+                    </div>
+                `;
+            }
+        }
+        
+        // Initial load and periodic updates
+        updateServiceStatus();
+        fetchGPUMetrics();
+        
+        setInterval(updateServiceStatus, 30000); // Every 30 seconds
+        setInterval(fetchGPUMetrics, 5000); // Every 5 seconds
+    </script>
+</body>
+</html>
