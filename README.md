@@ -2,6 +2,8 @@
 
 > Flexible deployment of LocalAI, Ollama, and Stable Diffusion Forge with dynamic GPU configuration. Run OpenAI-compatible APIs locally with any number of NVIDIA GPUs.
 
+![AI Box Dashboard](dashboard.png)
+
 [![Ubuntu](https://img.shields.io/badge/Ubuntu-20.04%20%7C%2022.04%20%7C%2024.04-orange)](https://ubuntu.com/)
 [![NVIDIA](https://img.shields.io/badge/NVIDIA-RTX%203090%20%7C%204090%20%7C%20A100-76B900)](https://www.nvidia.com/)
 [![Docker](https://img.shields.io/badge/Docker-24.0+-2496ED)](https://www.docker.com/)
