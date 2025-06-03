@@ -1,17 +1,42 @@
 #!/bin/bash
-# setup.sh - Dynamic AI Box Setup Script with Re-run Detection
-# Supports flexible GPU configurations and safe re-deployment
+# AI Box - Unified GPU-Accelerated AI Services Platform
+# setup.sh - Dynamic service deployment and management
+# Version: 2.0.0
 
 set -euo pipefail
+
+# Error handling
+trap 'error_handler $? $LINENO' ERR
+
+error_handler() {
+    local exit_code=$1
+    local line_number=$2
+    echo -e "${RED}[ERROR]${NC} Script failed with exit code $exit_code at line $line_number" >&2
+    echo -e "${RED}[ERROR]${NC} Check logs for more details" >&2
+    exit $exit_code
+}
 
 # Script directory
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 
 # Configuration files
-CONFIG_FILE="${SCRIPT_DIR}/.deployment.conf"
-STATE_FILE="${SCRIPT_DIR}/.deployment-state"
+CONFIG_DIR="${SCRIPT_DIR}/config"
+mkdir -p "$CONFIG_DIR"
+CONFIG_FILE="${CONFIG_DIR}/deployment.conf"
+STATE_FILE="${CONFIG_DIR}/deployment-state"
+SERVICES_FILE="${CONFIG_DIR}/deployed-services.json"
 
-# Colors for output
+# Log file
+LOG_DIR="${SCRIPT_DIR}/logs"
+mkdir -p "$LOG_DIR"
+LOG_FILE="${LOG_DIR}/setup-$(date +%Y%m%d-%H%M%S).log"
+
+# Logging function
+log() {
+    echo "[$(date +'%Y-%m-%d %H:%M:%S')] $*" | tee -a "$LOG_FILE"
+}
+
+# Colors
 RED='\033[0;31m'
 GREEN='\033[0;32m'
 YELLOW='\033[1;33m'
@@ -20,916 +45,1006 @@ CYAN='\033[0;36m'
 BOLD='\033[1m'
 NC='\033[0m'
 
-# Default values
-DEFAULT_DEPLOY_METHOD="ansible"
-DEFAULT_LOCALAI_PORT=8080
-DEFAULT_OLLAMA_PORT=11434
-DEFAULT_FORGE_PORT=7860
-DEFAULT_DCGM_PORT=9400
-DEFAULT_DRIVER_VERSION="535"
+# Service Registry - Extensible service definitions
+declare -A SERVICE_INFO
+declare -A SERVICE_PORTS
+declare -A SERVICE_IMAGES
+declare -A SERVICE_VOLUMES
+declare -A SERVICE_ENV
+declare -A SERVICE_REQUIRES
+
+# LLM Services
+SERVICE_INFO["localai"]="LocalAI|OpenAI-compatible LLM API|llm"
+SERVICE_PORTS["localai"]="8080"
+SERVICE_IMAGES["localai"]="quay.io/go-skynet/local-ai:latest-gpu-nvidia-cuda-12"
+SERVICE_VOLUMES["localai"]="models:/build/models;localai/cache:/tmp/generated"
+SERVICE_ENV["localai"]="THREADS=8;DEBUG=false"
+
+SERVICE_INFO["ollama"]="Ollama|Simple LLM management with CLI|llm"
+SERVICE_PORTS["ollama"]="11434"
+SERVICE_IMAGES["ollama"]="ollama/ollama:latest"
+SERVICE_VOLUMES["ollama"]="ollama/models:/root/.ollama"
+SERVICE_ENV["ollama"]="OLLAMA_HOST=0.0.0.0"
+
+# ChromaDB - Vector database for embeddings
+SERVICE_INFO["chromadb"]="ChromaDB|Vector database for RAG/embeddings|database"
+SERVICE_PORTS["chromadb"]="8000"
+SERVICE_IMAGES["chromadb"]="chromadb/chroma:latest"
+SERVICE_VOLUMES["chromadb"]="chromadb:/chroma/chroma"
+SERVICE_ENV["chromadb"]="IS_PERSISTENT=TRUE;PERSIST_DIRECTORY=/chroma/chroma;ANONYMIZED_TELEMETRY=FALSE"
+SERVICE_REQUIRES["chromadb"]=""
+
+# n8n - Workflow automation
+SERVICE_INFO["n8n"]="n8n|Workflow automation for AI chains|automation"
+SERVICE_PORTS["n8n"]="5678"
+SERVICE_IMAGES["n8n"]="n8nio/n8n:latest"
+SERVICE_VOLUMES["n8n"]="n8n:/home/node/.n8n"
+SERVICE_ENV["n8n"]="N8N_SECURE_COOKIE=false;N8N_HOST=0.0.0.0"
+SERVICE_REQUIRES["n8n"]=""
+
+# Whisper - Speech to text
+SERVICE_INFO["whisper"]="Whisper|OpenAI speech-to-text|audio"
+SERVICE_PORTS["whisper"]="9000"
+SERVICE_IMAGES["whisper"]="onerahmet/openai-whisper-asr-webservice:latest-gpu"
+SERVICE_VOLUMES["whisper"]="whisper/models:/app/models"
+SERVICE_ENV["whisper"]="ASR_MODEL=base;ASR_ENGINE=openai_whisper"
+
+# Image Generation Services
+SERVICE_INFO["forge"]="SD Forge|Optimized Stable Diffusion WebUI|image"
+SERVICE_PORTS["forge"]="7860"
+SERVICE_IMAGES["forge"]="nykk3/stable-diffusion-webui-forge:latest"
+SERVICE_VOLUMES["forge"]="models/stable-diffusion:/app/stable-diffusion-webui/models/Stable-diffusion;models/loras:/app/stable-diffusion-webui/models/Lora;models/vae:/app/stable-diffusion-webui/models/VAE;outputs/forge:/app/stable-diffusion-webui/outputs"
+SERVICE_ENV["forge"]="COMMANDLINE_ARGS=--listen --api --xformers --medvram"
+
+SERVICE_INFO["comfyui"]="ComfyUI|Node-based workflow (FLUX support!)|image"
+SERVICE_PORTS["comfyui"]="8188"
+SERVICE_IMAGES["comfyui"]="yanwk/comfyui-boot:latest"
+SERVICE_VOLUMES["comfyui"]="comfyui:/workspace;models:/workspace/models;comfyui/output:/workspace/output"
+SERVICE_ENV["comfyui"]="CLI_ARGS=--listen"
+
+# Image generation services - keeping only Forge and ComfyUI
+# Removed: AUTOMATIC1111 (redundant with Forge), InvokeAI (redundant UI), Fooocus (simplified UI, redundant)
+
+# Training/Tools - Currently empty (Kohya_ss removed due to compatibility issues)
+
+# Support Services
+SERVICE_INFO["dcgm"]="DCGM Exporter|NVIDIA GPU metrics|support"
+SERVICE_PORTS["dcgm"]="9400"
+SERVICE_IMAGES["dcgm"]="nvcr.io/nvidia/k8s/dcgm-exporter:3.1.8-3.1.5-ubuntu20.04"
+SERVICE_VOLUMES["dcgm"]=""
+SERVICE_ENV["dcgm"]="DCGM_EXPORTER_LISTEN=0.0.0.0:9400;DCGM_EXPORTER_KUBERNETES=false"
+SERVICE_REQUIRES["dcgm"]=""
+
+SERVICE_INFO["dashboard"]="Web Dashboard|Unified control panel|support"
+SERVICE_PORTS["dashboard"]="80"
+SERVICE_IMAGES["dashboard"]="nginx:alpine"
+SERVICE_VOLUMES["dashboard"]="nginx/html:/usr/share/nginx/html:ro;nginx/nginx.conf:/etc/nginx/nginx.conf:ro"
+SERVICE_ENV["dashboard"]=""
+SERVICE_REQUIRES["dashboard"]=""
 
 # Functions
-print_banner() {
-    echo -e "${CYAN}"
-    echo "╔══════════════════════════════════════════╗"
-    echo "║        AI Box Deployment Setup           ║"
-    echo "║   Flexible Multi-GPU AI Workstation      ║"
-    echo "╚══════════════════════════════════════════╝"
-    echo -e "${NC}"
-}
-
 log() { echo -e "${BLUE}[INFO]${NC} $1"; }
 error() { echo -e "${RED}[ERROR]${NC} $1" >&2; }
 success() { echo -e "${GREEN}[SUCCESS]${NC} $1"; }
 warn() { echo -e "${YELLOW}[WARNING]${NC} $1"; }
-skip() { echo -e "${CYAN}[SKIP]${NC} $1"; }
 
-# State management functions
-save_state() {
-    local key=$1
-    local value=$2
-    if grep -q "^${key}=" "$STATE_FILE" 2>/dev/null; then
-        sed -i "s/^${key}=.*/${key}=${value}/" "$STATE_FILE"
-    else
-        echo "${key}=${value}" >> "$STATE_FILE"
-    fi
+# Print banner
+print_banner() {
+    clear
+    echo -e "${CYAN}${BOLD}"
+    echo "╔════════════════════════════════════════════╗"
+    echo "║        AI Box Modular Setup v2.0           ║"
+    echo "║     Dynamic Service Management System       ║"
+    echo "╚════════════════════════════════════════════╝"
+    echo -e "${NC}"
 }
 
-get_state() {
-    local key=$1
-    if [[ -f "$STATE_FILE" ]]; then
-        grep "^${key}=" "$STATE_FILE" 2>/dev/null | cut -d'=' -f2 || echo ""
-    else
-        echo ""
-    fi
-}
-
-check_state() {
-    local key=$1
-    local state=$(get_state "$key")
-    [[ "$state" == "completed" ]]
-}
-
-# Create directory structure
-create_directory_structure() {
-    log "Creating AI Box directory structure..."
+# Check system requirements
+check_system_requirements() {
+    log "Checking system requirements..."
     
-    local dirs=(
-        "/opt/ai-box"
-        "/opt/ai-box/models"
-        "/opt/ai-box/models/stable-diffusion"
-        "/opt/ai-box/models/stable-diffusion/SDXL"
-        "/opt/ai-box/models/loras"
-        "/opt/ai-box/models/vae"
-        "/opt/ai-box/models/embeddings"
-        "/opt/ai-box/outputs"
-        "/opt/ai-box/outputs/forge"
-        "/opt/ai-box/nginx"
-        "/opt/ai-box/nginx/html"
-    )
-    
-    for dir in "${dirs[@]}"; do
-        if [[ ! -d "$dir" ]]; then
-            sudo mkdir -p "$dir"
-            sudo chown -R $USER:$USER "$dir"
-            log "Created: $dir"
-        else
-            skip "Directory exists: $dir"
-        fi
-    done
-    
-    # Copy dashboard HTML if it exists
-    if [[ -f "${SCRIPT_DIR}/ansible/files/dashboard.html" ]]; then
-        sudo cp "${SCRIPT_DIR}/ansible/files/dashboard.html" /opt/ai-box/nginx/html/index.html
-        log "Copied dashboard HTML"
-    else
-        warn "Dashboard HTML not found in ansible/files/"
-    fi
-    
-    # Copy nginx config if it exists
-    if [[ -f "${SCRIPT_DIR}/docker/nginx/nginx.conf" ]]; then
-        sudo cp "${SCRIPT_DIR}/docker/nginx/nginx.conf" /opt/ai-box/nginx/nginx.conf
-        log "Copied nginx configuration"
-    elif [[ -f "${SCRIPT_DIR}/docker/configs/nginx/nginx.conf" ]]; then
-        sudo cp "${SCRIPT_DIR}/docker/configs/nginx/nginx.conf" /opt/ai-box/nginx/nginx.conf
-        log "Copied nginx configuration"
-    fi
-    
-    success "Directory structure ready"
-}
-
-# Clean up temporary files
-cleanup_temp_files() {
-    log "Cleaning up temporary files..."
-    
-    # Remove any temporary files created during deployment
-    local temp_files=(
-        "${SCRIPT_DIR}/ansible/*.retry"
-        "${SCRIPT_DIR}/.ansible-*"
-        "/tmp/ai-box-*"
-    )
-    
-    for pattern in "${temp_files[@]}"; do
-        if ls $pattern 2>/dev/null | grep -q .; then
-            rm -f $pattern
-            log "Removed: $pattern"
-        fi
-    done
-    
-    success "Cleanup completed"
-}
-
-# Check if resuming after reboot
-check_resume_after_reboot() {
-    if [[ "$(get_state 'resume_after_reboot')" == "true" ]]; then
-        log "Resuming deployment after reboot..."
-        
-        # Check if driver is now working
-        if check_nvidia_driver; then
-            success "NVIDIA driver loaded successfully!"
-            save_state "nvidia_driver" "completed"
-            save_state "resume_after_reboot" "false"
-            save_state "needs_reboot" "false"
-        else
-            error "NVIDIA driver still not functional after reboot"
-            error "Please check driver installation and try again"
-            exit 1
-        fi
-    fi
-}
-
-# Handle NVIDIA driver installation
-handle_nvidia_driver_install() {
-    if check_state "nvidia_driver" || check_nvidia_driver; then
-        skip "NVIDIA driver already installed and loaded"
-        save_state "nvidia_driver" "completed"
-        return 0
-    fi
-    
-    warn "NVIDIA driver installation required"
-    echo
-    echo "Installing NVIDIA drivers requires a system reboot to load the kernel modules."
-    echo "After installation, you will need to:"
-    echo "  1. Reboot your system"
-    echo "  2. Run this script again to continue deployment"
-    echo
-    read -p "Install NVIDIA drivers now? [Y/n]: " -n 1 -r
-    echo
-    
-    if [[ ! $REPLY =~ ^[Yy]$ ]]; then
-        error "NVIDIA drivers are required. Exiting."
+    # Check if running with sudo
+    if [[ $EUID -eq 0 ]]; then
+        error "Please run this script without sudo"
         exit 1
     fi
     
-    # Mark that we need reboot after driver install
-    save_state "needs_reboot" "true"
+    # Check Docker
+    if ! command -v docker &> /dev/null; then
+        error "Docker is not installed. Please install Docker first."
+        exit 1
+    fi
     
-    # Install drivers (via ansible or direct)
-    case $DEPLOY_METHOD in
-        ansible)
-            cd "${SCRIPT_DIR}/ansible"
-            ansible-playbook -i inventory.yml playbook.yml --tags nvidia -v
+    # Check if user is in docker group
+    if ! groups | grep -q docker; then
+        error "User $USER is not in the docker group"
+        echo "Run: sudo usermod -aG docker $USER"
+        exit 1
+    fi
+    
+    # Check NVIDIA drivers
+    if ! command -v nvidia-smi &> /dev/null; then
+        error "NVIDIA drivers not found. Please install NVIDIA drivers."
+        exit 1
+    fi
+    
+    # Check NVIDIA Container Toolkit
+    if ! docker run --rm --gpus all nvidia/cuda:11.8.0-base-ubuntu22.04 nvidia-smi &> /dev/null; then
+        error "NVIDIA Container Toolkit not working properly"
+        exit 1
+    fi
+    
+    # Check disk space (require at least 50GB free)
+    local free_space=$(df /opt 2>/dev/null || df / | awk 'NR==2 {print $4}')
+    local required_space=$((50 * 1024 * 1024))  # 50GB in KB
+    if [[ $free_space -lt $required_space ]]; then
+        error "Insufficient disk space. At least 50GB free space required."
+        echo "Available: $(($free_space / 1024 / 1024))GB"
+        exit 1
+    fi
+    
+    # Create AI Box directory if it doesn't exist
+    if [[ ! -d "/opt/ai-box" ]]; then
+        sudo mkdir -p /opt/ai-box
+        sudo chown $USER:$USER /opt/ai-box
+    fi
+    
+    success "System requirements check passed"
+}
+
+# Detect GPUs
+detect_gpus() {
+    log "Detecting GPUs..."
+    
+    # Get GPU count
+    GPU_COUNT=$(nvidia-smi --query-gpu=name --format=csv,noheader | wc -l)
+    
+    if [[ $GPU_COUNT -eq 0 ]]; then
+        error "No GPUs detected"
+        exit 1
+    fi
+    
+    # Get GPU model (first GPU)
+    GPU_MODEL=$(nvidia-smi --query-gpu=name --format=csv,noheader | head -n1)
+    
+    success "Detected $GPU_COUNT GPU(s): $GPU_MODEL"
+    
+    # Save to config
+    echo "GPU_COUNT=$GPU_COUNT" >> "$CONFIG_FILE"
+    echo "GPU_MODEL=\"$GPU_MODEL\"" >> "$CONFIG_FILE"
+}
+
+# Custom service selection
+custom_service_selection() {
+    echo
+    echo -e "${BOLD}Custom Service Selection${NC}"
+    echo "Select services to deploy (space-separated numbers):"
+    
+    local i=1
+    local service_array=()
+    
+    # Build service array and display options
+    for service in "${!SERVICE_INFO[@]}"; do
+        service_array+=("$service")
+        IFS='|' read -r name desc category <<< "${SERVICE_INFO[$service]}"
+        echo "$i) $service - $name: $desc"
+        ((i++))
+    done
+    
+    read -p "Enter numbers (e.g., 1 3 5): " selections
+    
+    SELECTED_SERVICES=""
+    for num in $selections; do
+        if [[ $num -ge 1 ]] && [[ $num -le ${#service_array[@]} ]]; then
+            SELECTED_SERVICES+="${service_array[$((num-1))]} "
+        fi
+    done
+    
+    # Trim trailing space
+    SELECTED_SERVICES=${SELECTED_SERVICES% }
+}
+
+# Update existing services
+update_existing_services() {
+    log "Updating existing services..."
+    
+    if [[ -z "$DEPLOYED_SERVICES" ]]; then
+        warn "No services are currently deployed!"
+        return
+    fi
+    
+    echo "Select update method:"
+    echo "1) Update images only (pull latest versions)"
+    echo "2) Reset configurations to defaults"
+    echo "3) Cancel"
+    
+    read -p "Enter choice [1-3]: " update_choice
+    
+    case $update_choice in
+        1)
+            echo "Pulling latest images for deployed services..."
+            
+            # Pull images in parallel for better performance
+            local pull_pids=()
+            for service in $DEPLOYED_SERVICES; do
+                local image="${SERVICE_IMAGES[$service]}"
+                log "Starting update for $service..."
+                docker pull "$image" &
+                pull_pids+=($!)
+            done
+            
+            # Wait for all pulls to complete
+            log "Waiting for all image updates to complete..."
+            local failed_pulls=0
+            for pid in "${pull_pids[@]}"; do
+                if ! wait $pid; then
+                    ((failed_pulls++))
+                fi
+            done
+            
+            if [[ $failed_pulls -gt 0 ]]; then
+                warn "$failed_pulls image(s) failed to update"
+            else
+                success "All images updated successfully"
+            fi
+            
+            echo
+            read -p "Restart services with new images? [y/N]: " restart
+            
+            if [[ "$restart" =~ ^[Yy]$ ]]; then
+                cd /opt/ai-box
+                docker compose down
+                docker compose up -d
+                success "Services updated and restarted"
+            else
+                log "Images updated. Restart manually when ready."
+            fi
+            ;;
+        2)
+            warn "This will reset all service configurations to defaults!"
+            read -p "Are you sure? Type 'yes' to confirm: " confirm
+            
+            if [[ "$confirm" == "yes" ]]; then
+                # Stop all services
+                cd /opt/ai-box
+                docker compose down
+                
+                # Regenerate configuration
+                SELECTED_SERVICES="$DEPLOYED_SERVICES"
+                generate_dynamic_docker_compose
+                
+                # Start services with new config
+                docker compose up -d
+                success "Services reset to default configurations"
+            else
+                log "Update cancelled"
+            fi
             ;;
         *)
-            error "Please use Ansible deployment method for initial system setup"
-            exit 1
+            log "Update cancelled"
             ;;
     esac
-    
-    save_state "nvidia_driver" "installed_needs_reboot"
-    
-    echo
-    echo -e "${YELLOW}${BOLD}=== REBOOT REQUIRED ===${NC}"
-    echo
-    echo "NVIDIA drivers have been installed but require a reboot to load."
-    echo
-    echo "Please:"
-    echo "  1. Save any work and close applications"
-    echo "  2. Reboot your system: ${BOLD}sudo reboot${NC}"
-    echo "  3. After reboot, run: ${BOLD}cd $(pwd) && ./setup.sh${NC}"
-    echo
-    echo "The script will resume from where it left off."
-    echo
-    
-    # Save progress
-    save_state "resume_after_reboot" "true"
-    exit 0
 }
 
-# System checks
-check_root() {
-    if [[ $EUID -eq 0 ]]; then
-        error "This script should not be run as root"
-        echo "Please run as a regular user with sudo privileges"
-        exit 1
-    fi
-}
-
-detect_os() {
-    if [[ -f /etc/os-release ]]; then
-        . /etc/os-release
-        OS=$ID
-        VER=$VERSION_ID
-    else
-        error "Cannot detect OS. This script requires Ubuntu 20.04 or 22.04"
-        exit 1
-    fi
-    
-    if [[ "$OS" != "ubuntu" ]] || [[ ! "$VER" =~ ^(20\.04|22\.04|24\.04)$ ]]; then
-        error "This script requires Ubuntu 20.04, 22.04, or 24.04"
-        error "Detected: $OS $VER"
-        exit 1
-    fi
-    
-    log "Detected OS: Ubuntu $VER"
-}
-
-check_existing_services() {
-    log "Checking existing AI Box services..."
-    
-    local services=("localai" "ollama" "forge" "dcgm-exporter")
-    local running_services=()
-    local stopped_services=()
-    
-    if command -v docker &> /dev/null; then
-        for service in "${services[@]}"; do
-            if docker ps -q -f name="^${service}$" 2>/dev/null | grep -q .; then
-                running_services+=("$service")
-            elif docker ps -aq -f name="^${service}$" 2>/dev/null | grep -q .; then
-                stopped_services+=("$service")
-            fi
-        done
-    fi
-    
-    if [[ ${#running_services[@]} -gt 0 ]]; then
-        echo
-        success "Found running services: ${running_services[*]}"
-        echo
-        echo "What would you like to do with existing services?"
-        echo "1) Keep them running (recommended)"
-        echo "2) Restart with new configuration only"
-        echo "3) Stop services but keep data"
-        echo "4) Remove everything and redeploy (WARNING: data loss)"
+# Load existing deployment state
+load_deployed_services() {
+    if [[ -f "$SERVICES_FILE" ]]; then
+        # Check if jq is available
+        if ! command -v jq &> /dev/null; then
+            warn "jq not found. Installing jq for JSON parsing..."
+            sudo apt-get update && sudo apt-get install -y jq
+        fi
         
-        read -p "Enter choice [1-4] (default: 1): " service_choice
-        case $service_choice in
-            1|"") 
-                SKIP_DEPLOYMENT=true
-                skip "Keeping existing services as-is"
+        # Parse with error handling
+        DEPLOYED_SERVICES=$(cat "$SERVICES_FILE" | jq -r '.services[]' 2>/dev/null | tr '\n' ' ' | sed 's/ $//')
+        
+        # Validate the parsed result
+        if [[ -z "$DEPLOYED_SERVICES" ]] && [[ -s "$SERVICES_FILE" ]]; then
+            warn "Failed to parse services file. It may be corrupted."
+            # Try to recover by reading raw content
+            local raw_content=$(cat "$SERVICES_FILE")
+            if [[ "$raw_content" =~ \"services\":\[(.*)\] ]]; then
+                DEPLOYED_SERVICES=$(echo "${BASH_REMATCH[1]}" | sed 's/"//g' | sed 's/,/ /g')
+                log "Recovered services: $DEPLOYED_SERVICES"
+            fi
+        fi
+    else
+        DEPLOYED_SERVICES=""
+    fi
+}
+
+# Save deployment state
+save_deployed_services() {
+    local services_json='{"services":['
+    local first=true
+    
+    for service in $1; do
+        if [[ "$first" == "true" ]]; then
+            first=false
+        else
+            services_json+=","
+        fi
+        services_json+="\"$service\""
+    done
+    
+    services_json+=']}'
+    echo "$services_json" > "$SERVICES_FILE"
+}
+
+# Check if service container already exists
+check_existing_container() {
+    local service=$1
+    
+    # Check if container exists (running or stopped)
+    if docker ps -a --format "{{.Names}}" | grep -q "^${service}$"; then
+        return 0
+    else
+        return 1
+    fi
+}
+
+# Handle existing service
+handle_existing_service() {
+    local service=$1
+    
+    if check_existing_container "$service"; then
+        echo
+        warn "Service '$service' already exists!"
+        echo "Options:"
+        echo "1) Skip - Keep existing configuration"
+        echo "2) Update - Reset to default configuration"
+        echo "3) Remove - Remove completely and start fresh"
+        
+        read -p "Choose option [1-3] (default: 1): " choice
+        
+        case ${choice:-1} in
+            1)
+                log "Skipping $service - keeping existing configuration"
+                return 1  # Skip this service
                 ;;
-            2) 
-                RESTART_SERVICES=true
-                log "Will restart services with new configuration"
+            2)
+                log "Updating $service to default configuration"
+                docker stop "$service" 2>/dev/null || true
+                docker rm "$service" 2>/dev/null || true
+                return 0  # Continue with setup
                 ;;
             3)
-                STOP_SERVICES=true
-                log "Will stop services but preserve data"
+                log "Removing $service completely"
+                docker stop "$service" 2>/dev/null || true
+                docker rm "$service" 2>/dev/null || true
+                remove_service_directories "$service"
+                return 0  # Continue with setup
                 ;;
-            4) 
-                warn "This will DELETE all container data!"
-                read -p "Are you SURE? Type 'yes' to confirm: " confirm
-                if [[ "$confirm" == "yes" ]]; then
-                    REMOVE_SERVICES=true
-                    warn "Will remove and redeploy all services"
-                else
-                    SKIP_DEPLOYMENT=true
-                    skip "Cancelled - keeping existing services"
-                fi
+            *)
+                log "Invalid choice - skipping $service"
+                return 1  # Skip this service
                 ;;
         esac
     fi
     
-    if [[ ${#stopped_services[@]} -gt 0 ]]; then
-        warn "Found stopped services: ${stopped_services[*]}"
-        echo "These will be removed and redeployed"
-    fi
+    return 0  # Service doesn't exist, continue normally
 }
 
-detect_gpus() {
-    log "Detecting GPU configuration..."
+# Create directory structure for a service
+create_service_directories() {
+    local service=$1
+    local volumes="${SERVICE_VOLUMES[$service]}"
     
-    # Check for saved GPU state
-    local saved_gpu_count=$(get_state "gpu_count")
+    log "Creating directories for $service..."
     
-    # Run GPU detection script
-    if [[ -f "${SCRIPT_DIR}/scripts/gpu-detect.sh" ]]; then
-        source "${SCRIPT_DIR}/scripts/gpu-detect.sh"
-    else
-        # Fallback GPU detection
-        if command -v nvidia-smi &> /dev/null; then
-            GPU_COUNT=$(nvidia-smi --query-gpu=count --format=csv,noheader | head -1)
-            GPU_MODEL=$(nvidia-smi --query-gpu=name --format=csv,noheader | head -1)
-        elif command -v lspci &> /dev/null; then
-            GPU_COUNT=$(lspci | grep -i nvidia | grep -i vga | wc -l)
-            GPU_MODEL=$(lspci | grep -i nvidia | grep -i vga | head -1 | sed 's/.*: //')
-        else
-            GPU_COUNT=0
-            GPU_MODEL="Unknown"
-        fi
-    fi
-    
-    if [[ $GPU_COUNT -eq 0 ]]; then
-        error "No NVIDIA GPUs detected!"
-        echo "This deployment requires NVIDIA GPUs"
-        exit 1
-    fi
-    
-    success "Detected $GPU_COUNT NVIDIA GPU(s): $GPU_MODEL"
-    
-    # Check if GPU configuration changed
-    if [[ -n "$saved_gpu_count" ]] && [[ "$GPU_COUNT" != "$saved_gpu_count" ]]; then
-        warn "GPU configuration has changed!"
-        warn "Previous: $saved_gpu_count GPUs, Current: $GPU_COUNT GPUs"
-        echo "You may need to reconfigure GPU assignments"
-    fi
-    
-    # Save current GPU state
-    save_state "gpu_count" "$GPU_COUNT"
-    save_state "gpu_model" "$GPU_MODEL"
-}
-
-check_disk_space() {
-    log "Checking disk space..."
-    
-    local required_gb=100
-    local available_gb=$(df -BG /opt 2>/dev/null | awk 'NR==2 {print $4}' | sed 's/G//')
-    
-    if [[ $available_gb -lt $required_gb ]]; then
-        warn "Low disk space: ${available_gb}GB available, ${required_gb}GB recommended"
-        read -p "Continue anyway? (y/N): " -n 1 -r
-        echo
-        if [[ ! $REPLY =~ ^[Yy]$ ]]; then
-            exit 1
-        fi
-    else
-        skip "Disk space OK: ${available_gb}GB available"
-    fi
-}
-
-check_nvidia_driver() {
-    if command -v nvidia-smi &> /dev/null; then
-        local current_version=$(nvidia-smi --query-gpu=driver_version --format=csv,noheader | head -1 | tr -d ' ')
-        local required_version="${DEFAULT_DRIVER_VERSION}"
-        
-        if [[ "$current_version" == "$required_version"* ]]; then
-            skip "NVIDIA driver $current_version already installed"
-            return 0
-        else
-            warn "NVIDIA driver $current_version installed, but $required_version recommended"
-            return 1
-        fi
-    else
-        return 1
-    fi
-}
-
-check_docker() {
-    if command -v docker &> /dev/null && docker --version &> /dev/null; then
-        skip "Docker already installed: $(docker --version)"
-        
-        # Check if nvidia runtime is configured
-        if docker info 2>/dev/null | grep -q "nvidia"; then
-            skip "NVIDIA container runtime already configured"
-            return 0
-        else
-            warn "Docker installed but NVIDIA runtime not configured"
-            return 1
-        fi
-    else
-        return 1
-    fi
-}
-
-prompt_deployment_method() {
-    echo
-    echo -e "${BOLD}Select deployment method:${NC}"
-    echo "1) Ansible (Recommended) - Full system configuration"
-    echo "2) Docker Compose - Container-only deployment"
-    echo "3) Hybrid - Ansible for system setup, manual Docker Compose"
-    
-    read -p "Enter choice [1-3] (default: 1): " choice
-    case $choice in
-        1|"") DEPLOY_METHOD="ansible" ;;
-        2) DEPLOY_METHOD="docker" ;;
-        3) DEPLOY_METHOD="hybrid" ;;
-        *) error "Invalid choice"; exit 1 ;;
-    esac
-    
-    log "Selected deployment method: $DEPLOY_METHOD"
-}
-
-prompt_deployment_target() {
-    echo
-    echo -e "${BOLD}Deployment Target${NC}"
-    echo "1) Local machine (this computer)"
-    echo "2) Remote machine (SSH)"
-    
-    read -p "Enter choice [1-2] (default: 1): " target_choice
-    
-    case $target_choice in
-        1|"")
-            DEPLOY_TARGET="local"
-            TARGET_HOST="localhost"
-            TARGET_USER="$USER"
-            ;;
-        2)
-            DEPLOY_TARGET="remote"
-            read -p "Remote hostname/IP: " TARGET_HOST
-            read -p "Remote username (default: $USER): " TARGET_USER
-            TARGET_USER=${TARGET_USER:-$USER}
-            read -p "SSH key path (default: ~/.ssh/id_rsa): " SSH_KEY
-            SSH_KEY=${SSH_KEY:-"$HOME/.ssh/id_rsa"}
-            ;;
-    esac
-}
-
-prompt_gpu_assignment() {
-    echo
-    echo -e "${BOLD}GPU Assignment Configuration${NC}"
-    echo "You have $GPU_COUNT GPU(s) available"
-    echo
-    echo "How would you like to assign GPUs to services?"
-    echo "1) Automatic - Distribute GPUs across services"
-    echo "2) Manual - Specify GPU assignment per service"
-    echo "3) Single GPU - Use only one GPU for all services"
-    echo "4) All GPUs - All services use all available GPUs (recommended for LLMs)"
-    
-    read -p "Enter choice [1-4] (default: 4): " gpu_choice
-    
-    case $gpu_choice in
-        1)
-            AUTO_GPU_ASSIGN=true
-            if [[ $GPU_COUNT -ge 2 ]]; then
-                LOCALAI_GPUS="0"
-                OLLAMA_GPUS="1"
-                FORGE_GPUS="0,1"
-            else
-                LOCALAI_GPUS="0"
-                OLLAMA_GPUS="0"
-                FORGE_GPUS="0"
+    # Parse volume mappings
+    IFS=';' read -ra VOLUME_ARRAY <<< "$volumes"
+    for volume in "${VOLUME_ARRAY[@]}"; do
+        if [[ -n "$volume" ]]; then
+            local host_path="${volume%%:*}"
+            
+            # Handle relative paths
+            if [[ ! "$host_path" =~ ^/ ]]; then
+                host_path="/opt/ai-box/$host_path"
             fi
-            ;;
-        2)
-            AUTO_GPU_ASSIGN=false
-            echo
-            echo "Available GPUs: 0-$((GPU_COUNT-1))"
-            read -p "LocalAI GPU(s) [comma-separated] (default: 0,1): " LOCALAI_GPUS
-            LOCALAI_GPUS=${LOCALAI_GPUS:-"0,1"}
             
-            read -p "Ollama GPU(s) [comma-separated] (default: 0,1): " OLLAMA_GPUS
-            OLLAMA_GPUS=${OLLAMA_GPUS:-"0,1"}
-            
-            read -p "Forge GPU(s) [comma-separated] (default: 0,1): " FORGE_GPUS
-            FORGE_GPUS=${FORGE_GPUS:-"0,1"}
-            ;;
-        3)
-            AUTO_GPU_ASSIGN=false
-            read -p "Which GPU to use [0-$((GPU_COUNT-1))] (default: 0): " SINGLE_GPU
-            SINGLE_GPU=${SINGLE_GPU:-"0"}
-            LOCALAI_GPUS="$SINGLE_GPU"
-            OLLAMA_GPUS="$SINGLE_GPU"
-            FORGE_GPUS="$SINGLE_GPU"
-            ;;
-        4|"")
-            AUTO_GPU_ASSIGN=true
-            # All services use all GPUs
-            ALL_GPUS=$(seq -s, 0 $((GPU_COUNT-1)))
-            LOCALAI_GPUS="$ALL_GPUS"
-            OLLAMA_GPUS="$ALL_GPUS"
-            FORGE_GPUS="$ALL_GPUS"
-            ;;
-    esac
-    
-    echo
-    success "GPU Assignment:"
-    echo "  LocalAI: GPU(s) $LOCALAI_GPUS"
-    echo "  Ollama: GPU(s) $OLLAMA_GPUS"
-    echo "  Forge: GPU(s) $FORGE_GPUS"
-}
-
-prompt_service_ports() {
-    echo
-    echo -e "${BOLD}Service Port Configuration${NC}"
-    echo "Configure ports for each service (press Enter for defaults)"
-    
-    read -p "LocalAI port (default: $DEFAULT_LOCALAI_PORT): " LOCALAI_PORT
-    LOCALAI_PORT=${LOCALAI_PORT:-$DEFAULT_LOCALAI_PORT}
-    
-    read -p "Ollama port (default: $DEFAULT_OLLAMA_PORT): " OLLAMA_PORT
-    OLLAMA_PORT=${OLLAMA_PORT:-$DEFAULT_OLLAMA_PORT}
-    
-    read -p "Forge port (default: $DEFAULT_FORGE_PORT): " FORGE_PORT
-    FORGE_PORT=${FORGE_PORT:-$DEFAULT_FORGE_PORT}
-    
-    read -p "DCGM Metrics port (default: $DEFAULT_DCGM_PORT): " DCGM_PORT
-    DCGM_PORT=${DCGM_PORT:-$DEFAULT_DCGM_PORT}
-    
-    # Check for port conflicts
-    for port in $LOCALAI_PORT $OLLAMA_PORT $FORGE_PORT $DCGM_PORT; do
-        if lsof -i:$port &> /dev/null; then
-            warn "Port $port is already in use!"
+            # Create directory if it doesn't exist
+            if [[ ! -d "$host_path" ]]; then
+                # Check if this is a file path (contains extension or ends with .conf)
+                if [[ "$host_path" =~ \.[a-zA-Z0-9]+$ ]]; then
+                    # It's a file, create parent directory
+                    local parent_dir=$(dirname "$host_path")
+                    if [[ ! -d "$parent_dir" ]]; then
+                        sudo mkdir -p "$parent_dir"
+                        sudo chown -R $USER:$USER "$parent_dir"
+                        log "Created parent directory: $parent_dir"
+                    fi
+                else
+                    # It's a directory
+                    sudo mkdir -p "$host_path"
+                    sudo chown -R $USER:$USER "$host_path"
+                    log "Created: $host_path"
+                fi
+            fi
         fi
     done
 }
 
-prompt_optional_features() {
-    echo
-    echo -e "${BOLD}Optional Features${NC}"
+# Remove service directories (with confirmation)
+remove_service_directories() {
+    local service=$1
+    local volumes="${SERVICE_VOLUMES[$service]}"
     
-    read -p "Enable GPU monitoring (DCGM)? [Y/n]: " -n 1 -r
-    echo
-    ENABLE_DCGM=$([[ $REPLY =~ ^[Yy]$ ]] && echo "true" || echo "false")
+    warn "Remove data directories for $service?"
+    read -p "This will DELETE all data! Type 'yes' to confirm: " confirm
     
-    read -p "Enable automatic updates (Watchtower)? [y/N]: " -n 1 -r
-    echo
-    ENABLE_WATCHTOWER=$([[ $REPLY =~ ^[Yy]$ ]] && echo "true" || echo "false")
-    
-    read -p "Enable web dashboard? [Y/n]: " -n 1 -r
-    echo
-    ENABLE_DASHBOARD=$([[ $REPLY =~ ^[Yy]$ ]] && echo "true" || echo "false")
-}
-
-save_configuration() {
-    log "Saving configuration..."
-    
-    cat > "$CONFIG_FILE" << EOF
-# AI Box Deployment Configuration
-# Generated on $(date)
-
-# Deployment
-DEPLOY_METHOD=$DEPLOY_METHOD
-DEPLOY_TARGET=$DEPLOY_TARGET
-TARGET_HOST=$TARGET_HOST
-TARGET_USER=$TARGET_USER
-SSH_KEY=${SSH_KEY:-}
-
-# System
-OS_VERSION=$VER
-GPU_COUNT=$GPU_COUNT
-GPU_MODEL="$GPU_MODEL"
-NVIDIA_DRIVER_VERSION=$DEFAULT_DRIVER_VERSION
-
-# GPU Assignment
-AUTO_GPU_ASSIGN=$AUTO_GPU_ASSIGN
-LOCALAI_GPUS=$LOCALAI_GPUS
-OLLAMA_GPUS=$OLLAMA_GPUS
-FORGE_GPUS=$FORGE_GPUS
-
-# Service Ports
-LOCALAI_PORT=$LOCALAI_PORT
-OLLAMA_PORT=$OLLAMA_PORT
-FORGE_PORT=$FORGE_PORT
-DCGM_PORT=$DCGM_PORT
-
-# Optional Features
-ENABLE_DCGM=$ENABLE_DCGM
-ENABLE_WATCHTOWER=$ENABLE_WATCHTOWER
-ENABLE_DASHBOARD=$ENABLE_DASHBOARD
-
-# Paths
-AI_BOX_DIR=/opt/ai-box
-MODELS_DIR=/opt/ai-box/models
-OUTPUTS_DIR=/opt/ai-box/outputs
-EOF
-    
-    success "Configuration saved to $CONFIG_FILE"
-}
-
-generate_ansible_inventory() {
-    log "Generating Ansible inventory..."
-    
-    cat > "${SCRIPT_DIR}/ansible/inventory.yml" << EOF
-all:
-  children:
-    ai_boxes:
-      hosts:
-        ${TARGET_HOST}:
-          ansible_host: ${TARGET_HOST}
-          ansible_user: ${TARGET_USER}
-          ${SSH_KEY:+ansible_ssh_private_key_file: $SSH_KEY}
-          ansible_python_interpreter: /usr/bin/python3
-          
-          # Hardware configuration
-          gpu_count: ${GPU_COUNT}
-          gpu_model: "${GPU_MODEL}"
-          
-          # GPU assignments
-          localai_gpus: "${LOCALAI_GPUS}"
-          ollama_gpus: "${OLLAMA_GPUS}"
-          forge_gpus: "${FORGE_GPUS}"
-          
-          # Service ports
-          localai_port: ${LOCALAI_PORT}
-          ollama_port: ${OLLAMA_PORT}
-          forge_port: ${FORGE_PORT}
-          dcgm_port: ${DCGM_PORT}
-          
-          # Optional features
-          enable_dcgm: ${ENABLE_DCGM}
-          enable_watchtower: ${ENABLE_WATCHTOWER}
-          enable_dashboard: ${ENABLE_DASHBOARD}
-EOF
-}
-
-generate_docker_env() {
-    log "Generating Docker environment file..."
-    
-    cat > "${SCRIPT_DIR}/docker/.env" << EOF
-# AI Box Docker Environment
-# Generated on $(date)
-
-# GPU Configuration
-GPU_COUNT=${GPU_COUNT}
-LOCALAI_GPUS=${LOCALAI_GPUS}
-OLLAMA_GPUS=${OLLAMA_GPUS}
-FORGE_GPUS=${FORGE_GPUS}
-
-# Service Ports
-LOCALAI_PORT=${LOCALAI_PORT}
-OLLAMA_PORT=${OLLAMA_PORT}
-FORGE_PORT=${FORGE_PORT}
-DCGM_PORT=${DCGM_PORT}
-
-# Optional Features
-ENABLE_DCGM=${ENABLE_DCGM}
-ENABLE_WATCHTOWER=${ENABLE_WATCHTOWER}
-ENABLE_DASHBOARD=${ENABLE_DASHBOARD}
-
-# Paths
-MODELS_DIR=/opt/ai-box/models
-OUTPUTS_DIR=/opt/ai-box/outputs
-
-# Container Settings
-COMPOSE_PROJECT_NAME=ai-box
-TZ=UTC
-PUID=1000
-PGID=1000
-EOF
-}
-
-run_deployment() {
-    echo
-    echo -e "${BOLD}Ready to Deploy!${NC}"
-    echo
-    echo "Configuration Summary:"
-    echo "  Deployment Method: $DEPLOY_METHOD"
-    echo "  Target: $TARGET_HOST"
-    echo "  GPUs: $GPU_COUNT x $GPU_MODEL"
-    echo "  Services:"
-    echo "    - LocalAI: Port $LOCALAI_PORT (GPU $LOCALAI_GPUS)"
-    echo "    - Ollama: Port $OLLAMA_PORT (GPU $OLLAMA_GPUS)"
-    echo "    - Forge: Port $FORGE_PORT (GPU $FORGE_GPUS)"
-    echo
-    
-    read -p "Proceed with deployment? [Y/n]: " -n 1 -r
-    echo
-    
-    if [[ ! $REPLY =~ ^[Yy]$ ]]; then
-        warn "Deployment cancelled"
-        exit 0
+    if [[ "$confirm" == "yes" ]]; then
+        IFS=';' read -ra VOLUME_ARRAY <<< "$volumes"
+        for volume in "${VOLUME_ARRAY[@]}"; do
+            if [[ -n "$volume" ]]; then
+                local host_path="${volume%%:*}"
+                if [[ ! "$host_path" =~ ^/ ]]; then
+                    host_path="/opt/ai-box/$host_path"
+                fi
+                
+                # Only remove service-specific directories
+                if [[ "$host_path" =~ $service ]] && [[ -d "$host_path" ]]; then
+                    sudo rm -rf "$host_path"
+                    log "Removed: $host_path"
+                fi
+            fi
+        done
+    else
+        log "Keeping data directories"
     fi
+}
+
+# Dynamic service selection with current state
+prompt_service_management() {
+    load_deployed_services
     
-    # Remove existing services if requested
-    if [[ "${REMOVE_SERVICES:-false}" == "true" ]]; then
-        log "Removing existing services..."
-        if [[ -f "/opt/ai-box/docker-compose.yml" ]]; then
-            cd /opt/ai-box
-            docker compose down -v || true
-            cd - > /dev/null
-        fi
-    fi
+    echo
+    echo -e "${BOLD}${CYAN}=== AI Service Management ===${NC}"
+    echo
     
-    case $DEPLOY_METHOD in
-        ansible)
-            log "Running Ansible deployment..."
-            cd "${SCRIPT_DIR}/ansible"
-            
-            # Check if we need to install NVIDIA driver
-            if ! check_state "nvidia_driver" || ! check_nvidia_driver; then
-                handle_nvidia_driver_install  # This may exit for reboot
-            fi
-            
-            if ! check_state "docker" || ! check_docker; then
-                ansible-playbook -i inventory.yml playbook.yml --tags docker -v
-                save_state "docker" "completed"
-            fi
-            
-            # Deploy services
-            if [[ "${RESTART_SERVICES:-false}" == "true" ]]; then
-                log "Restarting services with new configuration..."
-                cd /opt/ai-box
-                docker compose restart
-            else
-                ansible-playbook -i inventory.yml playbook.yml --tags services -v
-            fi
-            save_state "services" "completed"
-            
-            # Ensure nginx dashboard is running
-            if ! docker ps -q -f name="nginx-dashboard" | grep -q .; then
-                log "Starting nginx dashboard..."
-                docker run -d \
-                  --name nginx-dashboard \
-                  --network ai-network \
-                  -p 80:80 \
-                  -v /opt/ai-box/nginx/nginx.conf:/etc/nginx/nginx.conf:ro \
-                  -v /opt/ai-box/nginx/html:/usr/share/nginx/html:ro \
-                  nginx:alpine
-            fi
-            ;;
-            
-        docker)
-            log "Running Docker Compose deployment..."
-            
-            # Check prerequisites
-            if ! check_docker; then
-                error "Docker is not installed. Please run with Ansible deployment method first."
-                exit 1
-            fi
-            
-            cd "${SCRIPT_DIR}/docker"
-            
-            if [[ "${RESTART_SERVICES:-false}" == "true" ]]; then
-                docker compose restart
-            else
-                docker compose up -d
-            fi
-            save_state "services" "completed"
-            
-            # Ensure nginx dashboard is running if enabled
-            if [[ "$ENABLE_DASHBOARD" == "true" ]] && ! docker ps -q -f name="nginx-dashboard" | grep -q .; then
-                log "Starting nginx dashboard..."
-                docker run -d \
-                  --name nginx-dashboard \
-                  --network ai-network \
-                  -p 80:80 \
-                  -v /opt/ai-box/nginx/nginx.conf:/etc/nginx/nginx.conf:ro \
-                  -v /opt/ai-box/nginx/html:/usr/share/nginx/html:ro \
-                  nginx:alpine
-            fi
-            ;;
-            
-        hybrid)
-            log "Running hybrid deployment..."
-            cd "${SCRIPT_DIR}/ansible"
-            
-            # System setup only
-            if ! check_state "system_setup"; then
-                ansible-playbook -i inventory.yml playbook.yml --tags system,docker -v
-                save_state "system_setup" "completed"
-            fi
-            
-            echo
-            success "System setup complete!"
-            echo "To start services, run:"
-            echo "  cd ${SCRIPT_DIR}/docker && docker compose up -d"
-            ;;
+    # Categorize services
+    local llm_services=""
+    local image_services=""
+    local training_services=""
+    local support_services=""
+    
+    for service in "${!SERVICE_INFO[@]}"; do
+        IFS='|' read -r name desc category <<< "${SERVICE_INFO[$service]}"
+        case $category in
+            "llm") llm_services+="$service " ;;
+            "image") image_services+="$service " ;;
+            "training") training_services+="$service " ;;
+            "support") support_services+="$service " ;;
+        esac
+    done
+    
+    # Display by category
+    echo -e "${BOLD}LLM Services:${NC}"
+    for service in $llm_services; do
+        display_service_status "$service"
+    done
+    
+    echo -e "\n${BOLD}Image Generation:${NC}"
+    for service in $image_services; do
+        display_service_status "$service"
+    done
+    
+    echo -e "\n${BOLD}Training Tools:${NC}"
+    for service in $training_services; do
+        display_service_status "$service"
+    done
+    
+    echo -e "\n${BOLD}Support Services:${NC}"
+    for service in $support_services; do
+        display_service_status "$service"
+    done
+    
+    echo
+    echo "Options:"
+    echo "1) Quick setup (LocalAI + Ollama + Forge + Dashboard)"
+    echo "2) Add services"
+    echo "3) Remove services"
+    echo "4) Update existing services"
+    echo "5) Custom selection"
+    
+    read -p "Enter choice [1-5]: " choice
+    
+    case $choice in
+        1) SELECTED_SERVICES="localai ollama forge dashboard dcgm" ;;
+        2) select_services_to_add ;;
+        3) select_services_to_remove ;;
+        4) update_existing_services ;;
+        5) custom_service_selection ;;
     esac
 }
 
-show_completion() {
-    # Set defaults if variables are not set (e.g., when keeping existing services)
-    TARGET_HOST=${TARGET_HOST:-localhost}
-    LOCALAI_PORT=${LOCALAI_PORT:-8080}
-    OLLAMA_PORT=${OLLAMA_PORT:-11434}
-    FORGE_PORT=${FORGE_PORT:-7860}
-    DCGM_PORT=${DCGM_PORT:-9400}
-    ENABLE_DCGM=${ENABLE_DCGM:-true}
-    ENABLE_DASHBOARD=${ENABLE_DASHBOARD:-false}
+# Display service status
+display_service_status() {
+    local service=$1
+    IFS='|' read -r name desc category <<< "${SERVICE_INFO[$service]}"
     
-    echo
-    success "Deployment Complete!"
-    echo
-    echo -e "${BOLD}${CYAN}=== Access Your Services ===${NC}"
-    echo
-    echo "🧠 LocalAI (OpenAI-compatible API):"
-    echo "   URL: http://${TARGET_HOST}:${LOCALAI_PORT}"
-    echo "   API: http://${TARGET_HOST}:${LOCALAI_PORT}/v1/completions"
-    echo
-    echo "🦙 Ollama (Model Management):"
-    echo "   URL: http://${TARGET_HOST}:${OLLAMA_PORT}"
-    echo "   CLI: docker exec ollama ollama run llama2"
-    echo
-    echo "🎨 Stable Diffusion Forge:"
-    echo "   URL: http://${TARGET_HOST}:${FORGE_PORT}"
-    echo "   API: http://${TARGET_HOST}:${FORGE_PORT}/sdapi/v1/txt2img"
+    local status="[ ]"
+    local color=$NC
     
-    if [[ "$ENABLE_DCGM" == "true" ]]; then
-        echo
-        echo "📊 GPU Metrics:"
-        echo "   URL: http://${TARGET_HOST}:${DCGM_PORT}/metrics"
-    fi
-    
-    if [[ "$ENABLE_DASHBOARD" == "true" ]]; then
-        echo
-        echo "🎯 Web Dashboard:"
-        echo "   URL: http://${TARGET_HOST} (port 80)"
-        echo "   Features: Service status, GPU monitoring, quick access"
-    else
-        echo
-        echo "📌 Note: Web Dashboard is not enabled."
-        echo "   To enable it, run setup again and choose 'Y' when asked about the dashboard."
-    fi
-    
-    # Check if dashboard container is actually running
-    if docker ps -q -f name="nginx-dashboard" | grep -q .; then
-        echo
-        echo "✅ Web Dashboard is running on port 80"
-        echo "   Access it at: http://${TARGET_HOST}"
-    fi
-    
-    echo
-    echo -e "${BOLD}${CYAN}=== Directory Structure ===${NC}"
-    echo "Models: /opt/ai-box/models/"
-    echo "  ├── LocalAI models: /opt/ai-box/models/*.gguf"
-    echo "  ├── SD models: /opt/ai-box/models/stable-diffusion/"
-    echo "  ├── LoRA models: /opt/ai-box/models/loras/"
-    echo "  └── VAE models: /opt/ai-box/models/vae/"
-    echo "Outputs: /opt/ai-box/outputs/"
-    
-    echo
-    echo -e "${BOLD}${CYAN}=== Useful Commands ===${NC}"
-    echo "Check status: ${SCRIPT_DIR}/scripts/check-status.sh"
-    echo "View logs: cd /opt/ai-box && docker compose logs -f [service]"
-    echo "Restart services: cd /opt/ai-box && docker compose restart"
-    echo "Update services: cd /opt/ai-box && docker compose pull && docker compose up -d"
-    
-    echo
-    echo "Configuration saved to: $CONFIG_FILE"
-    echo "Deployment state saved to: $STATE_FILE"
-    
-    # Cleanup
-    cleanup_temp_files
-}
-
-# Main execution
-main() {
-    print_banner
-    check_root
-    detect_os
-    
-    # Initialize state file
-    if [[ ! -f "$STATE_FILE" ]]; then
-        touch "$STATE_FILE"
-        log "Created deployment state file"
-    fi
-    
-    # Check system status
-    check_disk_space
-    detect_gpus
-    check_resume_after_reboot  # Check if we're resuming after reboot
-    create_directory_structure  # Create directories early
-    check_existing_services
-    
-    # Skip deployment if requested
-    if [[ "${SKIP_DEPLOYMENT:-false}" == "true" ]]; then
-        show_completion
-        exit 0
-    fi
-    
-    # Check for existing configuration
-    if [[ -f "$CONFIG_FILE" ]]; then
-        echo
-        log "Found existing configuration from $(stat -c %y "$CONFIG_FILE" | cut -d' ' -f1)"
-        source "$CONFIG_FILE"
-        
-        echo "Previous settings:"
-        echo "  - Method: $DEPLOY_METHOD"
-        echo "  - GPUs: $GPU_COUNT x $GPU_MODEL"
-        echo "  - Services: LocalAI:$LOCALAI_PORT, Ollama:$OLLAMA_PORT, Forge:$FORGE_PORT"
-        echo
-        
-        read -p "Use existing configuration? [Y/n]: " -n 1 -r
-        echo
-        if [[ $REPLY =~ ^[Yy]$ ]]; then
-            generate_ansible_inventory
-            generate_docker_env
-            run_deployment
-            show_completion
-            exit 0
+    # Check if deployed
+    if [[ " $DEPLOYED_SERVICES " =~ " $service " ]]; then
+        # Check if running
+        if docker ps -q -f name="^${service}$" | grep -q .; then
+            status="[✓]"
+            color=$GREEN
+        else
+            status="[○]"
+            color=$YELLOW
         fi
     fi
     
-    # Interactive configuration
-    prompt_deployment_method
-    prompt_deployment_target
-    prompt_gpu_assignment
-    prompt_service_ports
-    prompt_optional_features
-    
-    # Save and generate configs
-    save_configuration
-    generate_ansible_inventory
-    generate_docker_env
-    
-    # Run deployment
-    run_deployment
-    show_completion
+    printf "${color}%-12s %-25s${NC} - %s\n" "$status $service" "$name" "$desc"
 }
 
-# Handle interruption
-trap 'echo -e "\n${YELLOW}Deployment interrupted. Run again to resume.${NC}"; exit 130' INT TERM
+# Add new services
+select_services_to_add() {
+    echo
+    echo "Select services to ADD:"
+    
+    local available_services=""
+    for service in "${!SERVICE_INFO[@]}"; do
+        if [[ ! " $DEPLOYED_SERVICES " =~ " $service " ]]; then
+            available_services+="$service "
+        fi
+    done
+    
+    if [[ -z "$available_services" ]]; then
+        warn "All services are already deployed!"
+        return
+    fi
+    
+    # Show available services
+    local i=1
+    local service_array=($available_services)
+    for service in "${service_array[@]}"; do
+        IFS='|' read -r name desc category <<< "${SERVICE_INFO[$service]}"
+        echo "$i) $service - $name: $desc"
+        ((i++))
+    done
+    
+    read -p "Enter numbers to add (space-separated): " selections
+    
+    SELECTED_SERVICES="$DEPLOYED_SERVICES"
+    for num in $selections; do
+        if [[ $num -ge 1 ]] && [[ $num -le ${#service_array[@]} ]]; then
+            SELECTED_SERVICES+=" ${service_array[$((num-1))]}"
+        fi
+    done
+}
 
-# Script execution
+# Remove existing services
+select_services_to_remove() {
+    if [[ -z "$DEPLOYED_SERVICES" ]]; then
+        warn "No services are currently deployed!"
+        return
+    fi
+    
+    echo
+    echo "Select services to REMOVE:"
+    
+    local i=1
+    local service_array=($DEPLOYED_SERVICES)
+    for service in "${service_array[@]}"; do
+        IFS='|' read -r name desc category <<< "${SERVICE_INFO[$service]}"
+        echo "$i) $service - $name"
+        ((i++))
+    done
+    
+    read -p "Enter numbers to remove (space-separated): " selections
+    
+    local services_to_remove=""
+    for num in $selections; do
+        if [[ $num -ge 1 ]] && [[ $num -le ${#service_array[@]} ]]; then
+            services_to_remove+="${service_array[$((num-1))]} "
+        fi
+    done
+    
+    # Remove from deployed list
+    SELECTED_SERVICES=""
+    for service in $DEPLOYED_SERVICES; do
+        if [[ ! " $services_to_remove " =~ " $service " ]]; then
+            SELECTED_SERVICES+="$service "
+        fi
+    done
+    
+    # Stop and remove containers
+    for service in $services_to_remove; do
+        log "Removing $service..."
+        docker stop "$service" 2>/dev/null || true
+        docker rm "$service" 2>/dev/null || true
+        remove_service_directories "$service"
+    done
+}
+
+# Generate dynamic docker-compose
+generate_dynamic_docker_compose() {
+    log "Generating docker-compose.yml..."
+    
+    cat > "/opt/ai-box/docker-compose.yml" << 'EOF'
+# AI Box Dynamic Docker Compose
+# Generated by setup.sh
+
+services:
+EOF
+
+    # Add each selected service
+    for service in $SELECTED_SERVICES; do
+        add_service_to_compose "$service"
+    done
+    
+    # Add networks and volumes
+    cat >> "/opt/ai-box/docker-compose.yml" << 'EOF'
+
+networks:
+  ai-network:
+    driver: bridge
+    name: ai-network
+    ipam:
+      config:
+        - subnet: 172.20.0.0/16
+
+volumes:
+EOF
+
+    # Add named volumes - collect unique volumes first
+    local unique_volumes=()
+    for service in $SELECTED_SERVICES; do
+        local volumes="${SERVICE_VOLUMES[$service]}"
+        if [[ -n "$volumes" ]]; then
+            IFS=';' read -ra VOLUME_ARRAY <<< "$volumes"
+            for volume in "${VOLUME_ARRAY[@]}"; do
+                local vol_name="${volume%%:*}"
+                # Only process true named volumes (single word, no slashes)
+                if [[ "$vol_name" =~ ^[a-zA-Z0-9_-]+$ ]]; then
+                    local vol_key="${vol_name}-data"
+                    # Add to array if not already present
+                    if [[ ! " ${unique_volumes[@]} " =~ " ${vol_key} " ]]; then
+                        unique_volumes+=("$vol_key")
+                    fi
+                fi
+            done
+        fi
+    done
+    
+    # Write unique volumes to compose file
+    for vol in "${unique_volumes[@]}"; do
+        echo "  $vol:" >> "/opt/ai-box/docker-compose.yml"
+        echo "    driver: local" >> "/opt/ai-box/docker-compose.yml"
+    done
+}
+
+# Add service to docker-compose
+add_service_to_compose() {
+    local service=$1
+    local image="${SERVICE_IMAGES[$service]}"
+    local port="${SERVICE_PORTS[$service]}"
+    local volumes="${SERVICE_VOLUMES[$service]}"
+    local env="${SERVICE_ENV[$service]}"
+    local gpus="${service^^}_GPUS"  # e.g., LOCALAI_GPUS
+    local port_var="${service^^}_PORT"  # e.g., LOCALAI_PORT
+    
+    cat >> "/opt/ai-box/docker-compose.yml" << EOF
+  $service:
+    image: $image
+    container_name: $service
+    ports:
+      - "${!port_var:-$port}:$port"
+EOF
+
+    # Add volumes
+    if [[ -n "$volumes" ]]; then
+        echo "    volumes:" >> "/opt/ai-box/docker-compose.yml"
+        IFS=';' read -ra VOLUME_ARRAY <<< "$volumes"
+        for volume in "${VOLUME_ARRAY[@]}"; do
+            local host_path="${volume%%:*}"
+            local container_path="${volume#*:}"
+            
+            # Convert relative to absolute paths
+            if [[ ! "$host_path" =~ ^/ ]]; then
+                host_path="/opt/ai-box/$host_path"
+            fi
+            
+            echo "      - $host_path:$container_path" >> "/opt/ai-box/docker-compose.yml"
+        done
+    fi
+    
+    # Add environment
+    if [[ -n "$env" ]]; then
+        echo "    environment:" >> "/opt/ai-box/docker-compose.yml"
+        IFS=';' read -ra ENV_ARRAY <<< "$env"
+        for env_var in "${ENV_ARRAY[@]}"; do
+            echo "      - $env_var" >> "/opt/ai-box/docker-compose.yml"
+        done
+        
+        # Add GPU assignment
+        if [[ -n "${!gpus+x}" ]] && [[ -n "${!gpus}" ]]; then
+            echo "      - CUDA_VISIBLE_DEVICES=${!gpus}" >> "/opt/ai-box/docker-compose.yml"
+        fi
+    fi
+    
+    # Add GPU deployment
+    if [[ "$service" != "dashboard" ]] && [[ -n "${!gpus+x}" ]] && [[ -n "${!gpus}" ]]; then
+        cat >> "/opt/ai-box/docker-compose.yml" << EOF
+    deploy:
+      resources:
+        reservations:
+          devices:
+            - driver: nvidia
+              device_ids: [$(echo ${!gpus} | sed "s/,/','/g" | sed "s/^/'/" | sed "s/$/'/")]
+              capabilities: [gpu]
+EOF
+    fi
+    
+    # Common settings
+    cat >> "/opt/ai-box/docker-compose.yml" << EOF
+    restart: unless-stopped
+    networks:
+      - ai-network
+
+EOF
+}
+
+# Port management
+check_and_assign_ports() {
+    log "Checking port availability..."
+    
+    for service in $SELECTED_SERVICES; do
+        local default_port="${SERVICE_PORTS[$service]}"
+        local port_var="${service^^}_PORT"
+        
+        # Check if port is in use
+        if lsof -i:$default_port &> /dev/null; then
+            warn "Port $default_port is in use!"
+            read -p "Enter alternative port for $service: " alt_port
+            eval "$port_var=$alt_port"
+        else
+            eval "$port_var=$default_port"
+        fi
+    done
+}
+
+# Load GPU assignments from existing containers
+load_existing_gpu_assignments() {
+    for service in $DEPLOYED_SERVICES; do
+        if [[ "$service" == "dashboard" ]] || [[ "$service" == "dcgm" ]]; then
+            continue  # Skip non-GPU services
+        fi
+        
+        local gpu_var="${service^^}_GPUS"
+        
+        # Try to get GPU assignment from running container
+        if docker ps -q -f name="^${service}$" | grep -q .; then
+            local gpu_devices=$(docker inspect "$service" 2>/dev/null | jq -r '.[0].HostConfig.DeviceRequests[0].DeviceIDs[]' 2>/dev/null | tr '\n' ',' | sed 's/,$//')
+            if [[ -n "$gpu_devices" ]]; then
+                eval "$gpu_var=\"$gpu_devices\""
+                log "Loaded GPU assignment for $service: $gpu_devices"
+            fi
+        fi
+    done
+}
+
+# GPU assignment for selected services
+assign_gpus_to_services() {
+    echo
+    echo -e "${BOLD}GPU Assignment${NC}"
+    echo "Detected GPUs: $GPU_COUNT"
+    
+    # First load existing assignments
+    load_existing_gpu_assignments
+    
+    # Smart defaults
+    local gpu_per_service=$((GPU_COUNT / $(echo $SELECTED_SERVICES | wc -w)))
+    local gpu_index=0
+    
+    for service in $SELECTED_SERVICES; do
+        if [[ "$service" == "dashboard" ]] || [[ "$service" == "dcgm" ]]; then
+            continue  # Skip non-GPU services
+        fi
+        
+        local gpu_var="${service^^}_GPUS"
+        
+        # Skip if already assigned (from existing container)
+        if [[ -n "${!gpu_var+x}" ]] && [[ -n "${!gpu_var}" ]]; then
+            echo "Using existing GPU assignment for $service: ${!gpu_var}"
+            continue
+        fi
+        
+        # Suggest GPUs
+        local suggested_gpus=""
+        if [[ $gpu_per_service -gt 0 ]]; then
+            for ((i=0; i<$gpu_per_service; i++)); do
+                if [[ $gpu_index -lt $GPU_COUNT ]]; then
+                    suggested_gpus+="$gpu_index,"
+                    ((gpu_index++))
+                fi
+            done
+            suggested_gpus=${suggested_gpus%,}  # Remove trailing comma
+        else
+            suggested_gpus="0"  # Default to first GPU
+        fi
+        
+        read -p "GPUs for $service (default: $suggested_gpus): " gpus
+        gpus=${gpus:-$suggested_gpus}
+        
+        # Validate GPU assignment
+        IFS=',' read -ra GPU_ARRAY <<< "$gpus"
+        local valid_assignment=true
+        for gpu_id in "${GPU_ARRAY[@]}"; do
+            if ! [[ "$gpu_id" =~ ^[0-9]+$ ]] || [[ $gpu_id -ge $GPU_COUNT ]]; then
+                error "Invalid GPU ID: $gpu_id (must be 0-$((GPU_COUNT-1)))"
+                valid_assignment=false
+                break
+            fi
+        done
+        
+        if [[ "$valid_assignment" == "false" ]]; then
+            warn "Using default GPU assignment: $suggested_gpus"
+            eval "$gpu_var=$suggested_gpus"
+        else
+            eval "$gpu_var=$gpus"
+        fi
+    done
+}
+
+# Main execution flow
+main() {
+    print_banner
+    check_system_requirements
+    load_deployed_services
+    
+    # Show current state
+    if [[ -n "$DEPLOYED_SERVICES" ]]; then
+        echo
+        echo -e "${BOLD}Current Deployment:${NC}"
+        for service in $DEPLOYED_SERVICES; do
+            if docker ps -q -f name="^${service}$" | grep -q .; then
+                echo -e "  ${GREEN}✓${NC} $service - Running"
+            else
+                echo -e "  ${YELLOW}○${NC} $service - Stopped"
+            fi
+        done
+    fi
+    
+    # Check for orphaned containers (exist but not in deployed list)
+    echo
+    log "Checking for orphaned containers..."
+    local orphaned_services=""
+    for service in "${!SERVICE_INFO[@]}"; do
+        if check_existing_container "$service" && [[ ! " $DEPLOYED_SERVICES " =~ " $service " ]]; then
+            orphaned_services+="$service "
+        fi
+    done
+    
+    if [[ -n "$orphaned_services" ]]; then
+        warn "Found orphaned containers: $orphaned_services"
+        echo "These containers exist but are not tracked in the deployment state."
+        read -p "Add them to the deployment state? [y/N]: " add_orphans
+        
+        if [[ "$add_orphans" =~ ^[Yy]$ ]]; then
+            DEPLOYED_SERVICES+=" $orphaned_services"
+            save_deployed_services "$DEPLOYED_SERVICES"
+            log "Added orphaned containers to deployment state"
+        fi
+    fi
+    
+    # Service management
+    prompt_service_management
+    
+    # GPU detection and assignment
+    detect_gpus
+    assign_gpus_to_services
+    
+    # Port management
+    check_and_assign_ports
+    
+    # Process each selected service
+    FINAL_SERVICES=""
+    for service in $SELECTED_SERVICES; do
+        # Check if service already exists (container or in deployed list)
+        if [[ ! " $DEPLOYED_SERVICES " =~ " $service " ]]; then
+            # New service - check if container exists from previous run
+            if handle_existing_service "$service"; then
+                create_service_directories "$service"
+                FINAL_SERVICES+="$service "
+            else
+                # Service was skipped but exists - still include it if it's running
+                if check_existing_container "$service"; then
+                    FINAL_SERVICES+="$service "
+                fi
+            fi
+        else
+            # Service is in deployed list - keep it
+            FINAL_SERVICES+="$service "
+        fi
+    done
+    
+    # Update selected services to only include those we're keeping
+    SELECTED_SERVICES="${FINAL_SERVICES% }"
+    
+    # Generate configuration
+    generate_dynamic_docker_compose
+    save_deployed_services "$SELECTED_SERVICES"
+    
+    # Deploy
+    cd /opt/ai-box
+    log "Starting services..."
+    
+    if ! docker compose up -d 2>&1 | tee /tmp/docker-compose.log; then
+        error "Failed to start services!"
+        echo "Check the log at /tmp/docker-compose.log for details"
+        echo
+        echo "Common issues:"
+        echo "- Port conflicts: Check if ports are already in use"
+        echo "- GPU conflicts: Verify GPU assignments"
+        echo "- Out of memory: Check available system memory"
+        exit 1
+    fi
+    
+    # Verify services are starting
+    log "Verifying services..."
+    sleep 5
+    local failed_services=""
+    for service in $SELECTED_SERVICES; do
+        if ! docker ps | grep -q "$service"; then
+            failed_services+="$service "
+        fi
+    done
+    
+    if [[ -n "$failed_services" ]]; then
+        warn "Some services may not have started properly: $failed_services"
+        echo "Check logs with: docker logs [service-name]"
+    fi
+    
+    # Show results
+    show_deployment_summary
+}
+
+# Show deployment summary
+show_deployment_summary() {
+    echo
+    success "Deployment Complete!"
+    echo
+    echo -e "${BOLD}Active Services:${NC}"
+    
+    for service in $SELECTED_SERVICES; do
+        local port_var="${service^^}_PORT"
+        local port="${!port_var}"
+        IFS='|' read -r name desc category <<< "${SERVICE_INFO[$service]}"
+        
+        echo -e "\n${GREEN}$name${NC}"
+        echo "  URL: http://${TARGET_HOST:-localhost}:$port"
+        
+        # Service-specific instructions
+        case $service in
+            "ollama")
+                echo "  CLI: docker exec $service ollama run llama2"
+                ;;
+            "localai")
+                echo "  API: http://${TARGET_HOST:-localhost}:$port/v1/completions"
+                ;;
+            "comfyui")
+                echo "  Manager: http://${TARGET_HOST:-localhost}:$port/manager"
+                ;;
+        esac
+    done
+    
+    echo
+    echo -e "${BOLD}Management Commands:${NC}"
+    echo "  View logs: docker logs [service-name]"
+    echo "  Restart: docker restart [service-name]"
+    echo "  Stop: docker stop [service-name]"
+    echo "  Add/Remove services: ./setup.sh"
+}
+
+# Signal handling for clean exit
+trap 'echo -e "\n${YELLOW}Setup interrupted. Run again to continue.${NC}"; exit 130' INT TERM
+
+# Entry point
 if [[ "${BASH_SOURCE[0]}" == "${0}" ]]; then
     main "$@"
 fi

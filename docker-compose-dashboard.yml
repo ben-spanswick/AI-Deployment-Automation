@@ -1,0 +1,21 @@
+version: '3.8'
+
+services:
+  dashboard:
+    image: nginx:alpine
+    container_name: dashboard
+    ports:
+      - "80:80"
+    volumes:
+      - /opt/ai-box/nginx/html:/usr/share/nginx/html:ro
+      - /opt/ai-box/nginx/nginx.conf:/etc/nginx/nginx.conf:ro
+      - /var/run/docker.sock:/var/run/docker.sock:ro
+    environment:
+      - DOCKER_HOST=unix:///var/run/docker.sock
+    restart: unless-stopped
+    networks:
+      - ai-network
+
+networks:
+  ai-network:
+    external: true

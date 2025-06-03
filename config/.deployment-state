@@ -1,0 +1,3 @@
+gpu_count=2
+gpu_model=NVIDIA GeForce RTX 3090
+services=completed

@@ -1,0 +1,29 @@
+all:
+  children:
+    ai_boxes:
+      hosts:
+        localhost:
+          ansible_host: localhost
+          ansible_user: mandrake
+          
+          ansible_python_interpreter: /usr/bin/python3
+          
+          # Hardware configuration
+          gpu_count: 2
+          gpu_model: "NVIDIA GeForce RTX 3090"
+          
+          # GPU assignments
+          localai_gpus: "0,1"
+          ollama_gpus: "0,1"
+          forge_gpus: "0,1"
+          
+          # Service ports
+          localai_port: 8080
+          ollama_port: 11434
+          forge_port: 7860
+          dcgm_port: 9400
+          
+          # Optional features
+          enable_dcgm: true
+          enable_watchtower: true
+          enable_dashboard: true
