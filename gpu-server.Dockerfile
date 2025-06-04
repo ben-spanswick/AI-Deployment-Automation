@@ -1,4 +1,4 @@
-FROM nvidia/cuda:11.8.0-base-ubuntu22.04
+FROM nvidia/cuda:12.6-base-ubuntu22.04
 
 # Install Python and basic tools
 RUN apt-get update && apt-get install -y \

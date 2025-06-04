@@ -125,7 +125,7 @@
             <h2 style="margin-top: 2rem;">API Endpoint</h2>
             <div class="endpoint">
                 <div class="endpoint-label">Base URL:</div>
-                <div class="endpoint-url" id="baseUrl">http://localhost:8000</div>
+                <div class="endpoint-url" id="baseUrl">http://0.0.0.0:8000</div>
             </div>
         </div>
         
@@ -138,7 +138,7 @@
                 <pre>import chromadb
 
 # Connect to ChromaDB
-client = chromadb.HttpClient(host='localhost', port=8000)
+client = chromadb.HttpClient(host='0.0.0.0', port=8000)
 
 # Create a collection
 collection = client.create_collection("my_collection")
@@ -206,7 +206,7 @@ curl -X POST http://localhost:8000/api/v1/collections/my_collection/add \
             const statusEl = document.getElementById('status');
             const baseUrlEl = document.getElementById('baseUrl');
             
-            // Update base URL to current host
+            // Update base URL to current host dynamically
             const baseUrl = `http://${window.location.hostname}:8000`;
             baseUrlEl.textContent = baseUrl;
             

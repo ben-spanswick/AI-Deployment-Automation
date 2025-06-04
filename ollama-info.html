@@ -226,7 +226,7 @@
                 <span class="url-path">/api/tags</span>
             </div>
             <div class="code-block">
-                <pre>curl http://192.168.20.54:11434/api/tags</pre>
+                <pre>curl http://0.0.0.0:11434/api/tags</pre>
             </div>
 
             <h3>Pull a Model</h3>
@@ -235,7 +235,7 @@
                 <span class="url-path">/api/pull</span>
             </div>
             <div class="code-block">
-                <pre>curl -X POST http://192.168.20.54:11434/api/pull \
+                <pre>curl -X POST http://0.0.0.0:11434/api/pull \
   -H "Content-Type: application/json" \
   -d '{"name": "llama3.2:3b"}'</pre>
             </div>
@@ -246,7 +246,7 @@
                 <span class="url-path">/api/generate</span>
             </div>
             <div class="code-block">
-                <pre>curl -X POST http://192.168.20.54:11434/api/generate \
+                <pre>curl -X POST http://0.0.0.0:11434/api/generate \
   -H "Content-Type: application/json" \
   -d '{
     "model": "llama3.2:3b",
@@ -267,7 +267,7 @@ pip install ollama
 # Basic usage
 import ollama
 
-client = ollama.Client(host='http://192.168.20.54:11434')
+client = ollama.Client(host='http://0.0.0.0:11434')
 
 response = client.generate(
     model='llama3.2:3b',
@@ -281,7 +281,7 @@ print(response['response'])</pre>
                 <pre>from openai import OpenAI
 
 client = OpenAI(
-    base_url='http://192.168.20.54:11434/v1',
+    base_url='http://0.0.0.0:11434/v1',
     api_key='ollama'  # required but unused
 )
 
@@ -351,7 +351,7 @@ print(response.choices[0].message.content)</pre>
             const statusEl = document.getElementById('status');
             const baseUrlEl = document.getElementById('baseUrl');
             
-            // Update base URL to current host
+            // Update base URL to current host dynamically  
             const baseUrl = `http://${window.location.hostname}:11434`;
             baseUrlEl.textContent = baseUrl;
             

@@ -731,9 +731,29 @@ CACHE_TTL = 2  # seconds
 GPU_CACHE_TTL = 5  # seconds - refresh GPU metrics every 5 seconds
 
 def run_cmd(cmd, timeout=5):
-    """Run shell command and return output"""
+    """Run shell command and return output - SECURE VERSION"""
     try:
-        result = subprocess.run(cmd, shell=True, capture_output=True, text=True, timeout=timeout)
+        # Convert string commands to list for security
+        if isinstance(cmd, str):
+            # Parse common Docker commands safely
+            if cmd.startswith('docker ps'):
+                cmd_parts = cmd.split()
+            elif cmd.startswith('docker stats'):
+                cmd_parts = cmd.split()
+            elif cmd.startswith('top '):
+                cmd_parts = ['sh', '-c', cmd]  # Only allow specific shell commands
+            elif cmd.startswith('free '):
+                cmd_parts = ['sh', '-c', cmd]
+            elif cmd.startswith('hostname'):
+                cmd_parts = ['hostname']
+            else:
+                # Log and reject unknown commands
+                print(f"Rejected unsafe command: {cmd}")
+                return ""
+        else:
+            cmd_parts = cmd
+            
+        result = subprocess.run(cmd_parts, capture_output=True, text=True, timeout=timeout)
         output = result.stdout.strip()
         # Clean up any Docker tty artifacts
         output = output.replace(' < /dev/null', '')
@@ -806,7 +826,8 @@ def get_docker_services():
                         host_part = port_parts[0].strip()
                         if ':' in host_part:
                             port = int(host_part.split(':')[-1])
-                except:
+                except (ValueError, IndexError) as e:
+                    print(f"Error parsing port from {ports_raw}: {e}")
                     pass
             
             # Get default port if not found
@@ -967,9 +988,26 @@ def check_service_status(service_name):
         print(f"Error checking {service_name} status: {e}")
         return jsonify({'status': 'offline'})
 
+@app.route('/api/dashboard')
+def api_dashboard():
+    """Get all dashboard data in one call - OPTIMIZED"""
+    services = get_docker_services()
+    system_info = api_system().get_json()
+    gpu_metrics = api_gpu_metrics().get_json()
+    
+    return jsonify({
+        'services': {
+            'data': services,
+            'count': len(services)
+        },
+        'system': system_info,
+        'gpu': gpu_metrics,
+        'timestamp': datetime.now().isoformat()
+    })
+
 @app.route('/api/services')
 def api_services():
-    """Get all services"""
+    """Get all services - LEGACY ENDPOINT"""
     services = get_docker_services()
     return jsonify({
         'services': services,
