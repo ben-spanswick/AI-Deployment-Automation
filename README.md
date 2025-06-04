@@ -1,6 +1,6 @@
 # 🤖 AI Box - Complete GPU-Accelerated AI Services Platform
 
-![AI Box Dashboard](dashboard.png)
+![AI Box Dashboard](resources/dashboard-screenshot.png)
 
 A production-ready platform for deploying and managing GPU-accelerated AI services with a unified web dashboard. Deploy multiple AI services (LLMs, image generation, vector databases, workflow automation) with a single command on any NVIDIA GPU-equipped Linux system.
 
@@ -256,7 +256,7 @@ We welcome contributions! The codebase follows modern practices:
 - **Maintainable code** - Clear separation of concerns
 - **Production-ready** - Proper error handling and logging
 
-See [details.md](details.md) for technical documentation.
+See [technical documentation](docs/technical-details.md) for detailed information.
 
 ## 📄 License
 
@@ -271,7 +271,7 @@ MIT License - see [LICENSE](LICENSE) file for details.
 ---
 
 **🔗 Quick Links:**
-- 📖 [Detailed Documentation](details.md)
+- 📖 [Detailed Documentation](docs/technical-details.md)
 - 🐛 [Issue Tracker](https://github.com/ben-spanswick/AI-Deployment-Automation/issues)  
 - 💬 [Discussions](https://github.com/ben-spanswick/AI-Deployment-Automation/discussions)
 

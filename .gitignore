@@ -1,0 +1,117 @@
+# AI Box - Production .gitignore
+
+# Build and deployment artifacts
+*.tar.gz
+*.deb
+*.rpm
+*.dmg
+*.pkg
+
+# Environment and secrets
+.env
+.env.local
+.env.production
+.env.development
+*.key
+*.pem
+secrets/
+credentials/
+
+# Logs and temporary files
+logs/*.log
+logs/*.txt
+*.log
+tmp/
+temp/
+.cache/
+
+# Data directories (models and outputs)
+data/*/
+models/*/
+outputs/*/
+!data/.gitkeep
+!models/.gitkeep
+!outputs/.gitkeep
+
+# Docker volumes and data
+docker-data/
+volumes/
+
+# IDE and editor files
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+.DS_Store
+Thumbs.db
+
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.Python
+build/
+develop-eggs/
+dist/
+downloads/
+eggs/
+.eggs/
+lib/
+lib64/
+parts/
+sdist/
+var/
+wheels/
+*.egg-info/
+.installed.cfg
+*.egg
+
+# Node.js (if used for frontend)
+node_modules/
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+
+# Development and testing
+.pytest_cache/
+.coverage
+.tox/
+.nox/
+htmlcov/
+.nyc_output
+coverage/
+
+# Backup files
+*.bak
+*.backup
+*.old
+*.orig
+
+# OS generated files
+.DS_Store
+.DS_Store?
+._*
+.Spotlight-V100
+.Trashes
+ehthumbs.db
+Thumbs.db
+
+# Session and temporary development files
+session-*.md
+*-temp.*
+*-backup.*
+working-*.yml
+debug-*.txt
+
+# Large model files (should be downloaded separately)
+*.safetensors
+*.ckpt
+*.bin
+*.gguf
+*.ggml
+
+# Container logs and runtime data
+.docker/
+docker/logs/
