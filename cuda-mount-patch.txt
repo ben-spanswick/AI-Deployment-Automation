@@ -1,0 +1,13 @@
+# Add this to the add_service_to_compose function after the volumes section:
+
+    # Add CUDA 12.1 library mounts for Forge
+    if [[ "$service" == "forge" ]] && [[ -d "/usr/local/cuda-12.1" ]]; then
+        echo "      # CUDA 12.1 compatibility fix" >> "/opt/ai-box/docker-compose.yml"
+        echo "      - /usr/local/cuda-12.1/lib64:/usr/local/cuda/lib64:ro" >> "/opt/ai-box/docker-compose.yml"
+        echo "      - /usr/local/cuda-12.1/compat:/usr/local/cuda/compat:ro" >> "/opt/ai-box/docker-compose.yml"
+    fi
+    
+    # Add shm_size for GPU services
+    if [[ "$service" == "forge" ]] || [[ "$service" == "comfyui" ]]; then
+        echo "    shm_size: 8gb" >> "/opt/ai-box/docker-compose.yml"
+    fi

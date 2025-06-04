@@ -1,0 +1,253 @@
+# Working Docker Compose Configuration for AI Box
+# This configuration includes all CUDA fixes and has been tested to work
+# Date: June 3, 2025
+
+version: '3.8'
+
+services:
+  # LocalAI - OpenAI-compatible LLM API
+  localai:
+    image: quay.io/go-skynet/local-ai:latest-gpu-nvidia-cuda-12
+    container_name: localai
+    ports:
+      - "${LOCALAI_PORT:-8080}:8080"
+    volumes:
+      - ${MODELS_DIR:-/opt/ai-box/models}:/build/models
+      - localai-data:/tmp/generated
+    environment:
+      - THREADS=${LOCALAI_THREADS:-8}
+      - DEBUG=${DEBUG:-false}
+      - CUDA_VISIBLE_DEVICES=${LOCALAI_GPUS:-0,1}
+    deploy:
+      resources:
+        reservations:
+          devices:
+            - driver: nvidia
+              device_ids: ${LOCALAI_GPU_IDS:-['0','1']}
+              capabilities: [gpu]
+    restart: unless-stopped
+    networks:
+      - ai-network
+
+  # Ollama - Easy model management
+  ollama:
+    image: ollama/ollama:latest
+    container_name: ollama
+    ports:
+      - "${OLLAMA_PORT:-11434}:11434"
+    volumes:
+      - ${OLLAMA_DIR:-/opt/ai-box/ollama}:/root/.ollama
+    environment:
+      - OLLAMA_HOST=0.0.0.0
+      - CUDA_VISIBLE_DEVICES=${OLLAMA_GPUS:-0,1}
+    deploy:
+      resources:
+        reservations:
+          devices:
+            - driver: nvidia
+              device_ids: ${OLLAMA_GPU_IDS:-['0','1']}
+              capabilities: [gpu]
+    restart: unless-stopped
+    networks:
+      - ai-network
+
+  # Stable Diffusion WebUI Forge - WITH CUDA 12.1 FIXES
+  forge:
+    image: nykk3/stable-diffusion-webui-forge:latest
+    container_name: forge
+    ports:
+      - "${FORGE_PORT:-7860}:7860"
+    volumes:
+      # Model directories
+      - ${MODELS_DIR:-/opt/ai-box/models}/stable-diffusion:/app/stable-diffusion-webui/models/Stable-diffusion
+      - ${MODELS_DIR:-/opt/ai-box/models}/loras:/app/stable-diffusion-webui/models/Lora
+      - ${MODELS_DIR:-/opt/ai-box/models}/vae:/app/stable-diffusion-webui/models/VAE
+      - ${OUTPUTS_DIR:-/opt/ai-box/outputs}/forge:/app/stable-diffusion-webui/outputs
+      - ${FORGE_DIR:-/opt/ai-box/forge-extensions}:/app/stable-diffusion-webui/extensions
+      # CUDA 12.1 library mounts (CRITICAL FOR COMPATIBILITY)
+      - /usr/local/cuda-12.1/lib64:/usr/local/cuda/lib64:ro
+      - /usr/local/cuda-12.1/compat:/usr/local/cuda/compat:ro
+    environment:
+      # Skip CUDA checks and model downloads - allows starting without models
+      - COMMANDLINE_ARGS=--listen --api --xformers --medvram --skip-torch-cuda-test --skip-version-check --no-download-sd-model
+      - CUDA_VISIBLE_DEVICES=${FORGE_GPUS:-0,1}
+      # CUDA environment fixes
+      - LD_LIBRARY_PATH=/usr/local/cuda/lib64:/usr/local/cuda/compat:$LD_LIBRARY_PATH
+      - CUDA_HOME=/usr/local/cuda
+      - PYTORCH_CUDA_ALLOC_CONF=max_split_size_mb:512
+      - TORCH_CUDA_ARCH_LIST=8.6;8.9
+      - CUDA_MODULE_LOADING=LAZY
+    deploy:
+      resources:
+        reservations:
+          devices:
+            - driver: nvidia
+              device_ids: ${FORGE_GPU_IDS:-['0','1']}
+              capabilities: [gpu]
+    restart: unless-stopped
+    networks:
+      - ai-network
+    shm_size: ${FORGE_SHM_SIZE:-8gb}
+
+  # ComfyUI - WITH CUDA 12.1 SPECIFIC IMAGE
+  comfyui:
+    image: yanwk/comfyui-boot:cu121  # MUST use cu121 tag for CUDA 12.1
+    container_name: comfyui
+    ports:
+      - "${COMFYUI_PORT:-8188}:8188"
+    volumes:
+      - ${COMFYUI_DIR:-/opt/ai-box/comfyui}:/home/runner
+      - ${MODELS_DIR:-/opt/ai-box/models}:/home/runner/models
+      - ${OUTPUTS_DIR:-/opt/ai-box/outputs}/comfyui:/home/runner/output
+    environment:
+      - CLI_ARGS=--listen
+      - CUDA_VISIBLE_DEVICES=${COMFYUI_GPUS:-0,1}
+    deploy:
+      resources:
+        reservations:
+          devices:
+            - driver: nvidia
+              device_ids: ${COMFYUI_GPU_IDS:-['0','1']}
+              capabilities: [gpu]
+    restart: unless-stopped
+    networks:
+      - ai-network
+    shm_size: ${COMFYUI_SHM_SIZE:-8gb}
+
+  # ChromaDB - Vector database
+  chromadb:
+    image: chromadb/chroma:latest
+    container_name: chromadb
+    ports:
+      - "${CHROMADB_PORT:-8000}:8000"
+    volumes:
+      - chromadb-data:/chroma/chroma
+    environment:
+      - CHROMA_SERVER_AUTH_PROVIDER=${CHROMA_AUTH:-chromadb.auth.token.TokenAuthServerProvider}
+      - CHROMA_SERVER_AUTH_CREDENTIALS=${CHROMA_TOKEN:-test-token}
+    restart: unless-stopped
+    networks:
+      - ai-network
+
+  # n8n - Workflow automation
+  n8n:
+    image: n8nio/n8n:latest
+    container_name: n8n
+    ports:
+      - "${N8N_PORT:-5678}:5678"
+    volumes:
+      - n8n-data:/home/node/.n8n
+      - ${N8N_FILES:-/opt/ai-box/n8n-files}:/files
+    environment:
+      - N8N_HOST=0.0.0.0
+      - N8N_PORT=5678
+      - N8N_PROTOCOL=http
+      - NODE_ENV=production
+      - WEBHOOK_URL=http://${EXTERNAL_IP:-localhost}:${N8N_PORT:-5678}/
+      - N8N_PAYLOAD_SIZE_MAX=16
+      - GENERIC_TIMEZONE=${TZ:-America/New_York}
+    restart: unless-stopped
+    networks:
+      - ai-network
+
+  # Whisper ASR
+  whisper:
+    image: onerahmet/openai-whisper-asr-webservice:latest-gpu
+    container_name: whisper
+    ports:
+      - "${WHISPER_PORT:-9000}:9000"
+    volumes:
+      - ${WHISPER_DIR:-/opt/ai-box/whisper}:/app/cache
+    environment:
+      - ASR_MODEL=${WHISPER_MODEL:-base}
+      - ASR_ENGINE=openai_whisper
+      - CUDA_VISIBLE_DEVICES=${WHISPER_GPUS:-0,1}
+    deploy:
+      resources:
+        reservations:
+          devices:
+            - driver: nvidia
+              device_ids: ${WHISPER_GPU_IDS:-['0','1']}
+              capabilities: [gpu]
+    restart: unless-stopped
+    networks:
+      - ai-network
+
+  # NVIDIA DCGM GPU Metrics
+  dcgm-exporter:
+    image: nvcr.io/nvidia/k8s/dcgm-exporter:3.1.8-3.1.5-ubuntu20.04
+    container_name: dcgm-exporter
+    ports:
+      - "${DCGM_PORT:-9400}:9400"
+    environment:
+      - DCGM_EXPORTER_LISTEN=0.0.0.0:9400
+      - DCGM_EXPORTER_KUBERNETES=false
+    deploy:
+      resources:
+        reservations:
+          devices:
+            - driver: nvidia
+              capabilities: [gpu]
+              count: all
+    restart: unless-stopped
+    cap_add:
+      - SYS_ADMIN
+    networks:
+      - ai-network
+
+  # Web Dashboard
+  dashboard:
+    image: nginx:alpine
+    container_name: dashboard
+    ports:
+      - "${DASHBOARD_PORT:-80}:80"
+    volumes:
+      - ${DASHBOARD_DIR:-/opt/ai-box/nginx/html}:/usr/share/nginx/html:ro
+      - ${NGINX_CONF:-/opt/ai-box/nginx/nginx.conf}:/etc/nginx/nginx.conf:ro
+    restart: unless-stopped
+    networks:
+      - ai-network
+    depends_on:
+      - dcgm-exporter
+
+  # Dashboard Backend API (if needed)
+  dashboard-backend:
+    build:
+      context: ${DASHBOARD_DIR:-/opt/ai-box}
+      dockerfile: dashboard-backend.Dockerfile
+    container_name: dashboard-backend
+    ports:
+      - "${BACKEND_PORT:-5000}:5000"
+    volumes:
+      - /var/run/docker.sock:/var/run/docker.sock:ro
+    environment:
+      - FLASK_APP=dashboard-backend.py
+    restart: unless-stopped
+    networks:
+      - ai-network
+    profiles:
+      - full  # Only start with --profile full
+
+# Network configuration
+networks:
+  ai-network:
+    driver: bridge
+    name: ai-network
+    ipam:
+      config:
+        - subnet: 172.20.0.0/16
+
+# Named volumes
+volumes:
+  localai-data:
+    driver: local
+  ollama-data:
+    driver: local
+  chromadb-data:
+    driver: local
+  n8n-data:
+    driver: local
+  forge-extensions:
+    driver: local
+  comfyui-data:
+    driver: local

@@ -1,0 +1,30 @@
+version: '3.8'
+
+services:
+  comfyui:
+    image: yanwk/comfyui-boot:cu121
+    container_name: comfyui
+    ports:
+      - "8188:8188"
+    volumes:
+      - /opt/ai-box/comfyui:/home/runner
+      - /opt/ai-box/models:/home/runner/models
+      - /opt/ai-box/comfyui/output:/home/runner/output
+    environment:
+      - CLI_ARGS=--listen
+      - CUDA_VISIBLE_DEVICES=0
+    deploy:
+      resources:
+        reservations:
+          devices:
+            - driver: nvidia
+              device_ids: ['0']
+              capabilities: [gpu]
+    restart: unless-stopped
+    networks:
+      - ai-network
+    shm_size: 8gb
+
+networks:
+  ai-network:
+    external: true

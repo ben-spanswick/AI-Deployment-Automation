@@ -1,0 +1,239 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>ChromaDB API Information</title>
+    <style>
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+            background: #0f0f0f;
+            color: #e0e0e0;
+            min-height: 100vh;
+            display: flex;
+            flex-direction: column;
+            padding: 2rem;
+        }
+        
+        .container {
+            max-width: 800px;
+            margin: 0 auto;
+            width: 100%;
+        }
+        
+        h1 {
+            font-size: 2.5rem;
+            background: linear-gradient(135deg, #00ff88 0%, #00b4d8 100%);
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+            margin-bottom: 1rem;
+        }
+        
+        .subtitle {
+            color: #888;
+            font-size: 1.2rem;
+            margin-bottom: 2rem;
+        }
+        
+        .info-card {
+            background: #1a1a2e;
+            border-radius: 12px;
+            padding: 2rem;
+            border: 1px solid #2a2a3e;
+            margin-bottom: 2rem;
+        }
+        
+        .info-card h2 {
+            color: #00ff88;
+            margin-bottom: 1rem;
+        }
+        
+        .status {
+            display: inline-block;
+            padding: 0.5rem 1rem;
+            background: rgba(0, 255, 136, 0.2);
+            color: #00ff88;
+            border: 1px solid #00ff88;
+            border-radius: 20px;
+            font-weight: 500;
+            margin-bottom: 1.5rem;
+        }
+        
+        .endpoint {
+            background: rgba(0,0,0,0.3);
+            padding: 1rem;
+            border-radius: 8px;
+            margin-bottom: 1rem;
+            font-family: 'Courier New', monospace;
+        }
+        
+        .endpoint-label {
+            color: #666;
+            font-size: 0.9rem;
+            margin-bottom: 0.5rem;
+        }
+        
+        .endpoint-url {
+            color: #00b4d8;
+            font-size: 1.1rem;
+        }
+        
+        .code-block {
+            background: rgba(0,0,0,0.5);
+            padding: 1.5rem;
+            border-radius: 8px;
+            overflow-x: auto;
+            margin-bottom: 1rem;
+        }
+        
+        .code-block pre {
+            color: #e0e0e0;
+            font-family: 'Courier New', monospace;
+            font-size: 0.9rem;
+            line-height: 1.5;
+        }
+        
+        .back-link {
+            display: inline-block;
+            margin-top: 2rem;
+            color: #00ff88;
+            text-decoration: none;
+            padding: 0.75rem 1.5rem;
+            background: #1a1a2e;
+            border-radius: 8px;
+            border: 1px solid #2a2a3e;
+            transition: all 0.2s ease;
+        }
+        
+        .back-link:hover {
+            background: #2a2a3e;
+            transform: translateY(-2px);
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>ChromaDB</h1>
+        <p class="subtitle">Open-source embedding database for AI applications</p>
+        
+        <div class="info-card">
+            <h2>Service Status</h2>
+            <span class="status" id="status">Checking...</span>
+            
+            <h2 style="margin-top: 2rem;">API Endpoint</h2>
+            <div class="endpoint">
+                <div class="endpoint-label">Base URL:</div>
+                <div class="endpoint-url" id="baseUrl">http://localhost:8000</div>
+            </div>
+        </div>
+        
+        <div class="info-card">
+            <h2>Quick Start</h2>
+            <p style="margin-bottom: 1rem;">ChromaDB is a vector database that stores embeddings and performs similarity searches. Here's how to use it:</p>
+            
+            <h3 style="color: #00b4d8; margin-bottom: 1rem;">Python Example:</h3>
+            <div class="code-block">
+                <pre>import chromadb
+
+# Connect to ChromaDB
+client = chromadb.HttpClient(host='localhost', port=8000)
+
+# Create a collection
+collection = client.create_collection("my_collection")
+
+# Add documents with embeddings
+collection.add(
+    documents=["This is a document", "This is another document"],
+    metadatas=[{"source": "my_source"}, {"source": "my_source"}],
+    ids=["id1", "id2"]
+)
+
+# Query the collection
+results = collection.query(
+    query_texts=["This is a query document"],
+    n_results=2
+)</pre>
+            </div>
+            
+            <h3 style="color: #00b4d8; margin-bottom: 1rem;">REST API Example:</h3>
+            <div class="code-block">
+                <pre># Create a collection
+curl -X POST http://localhost:8000/api/v1/collections \
+  -H "Content-Type: application/json" \
+  -d '{"name": "my_collection"}'
+
+# Add embeddings
+curl -X POST http://localhost:8000/api/v1/collections/my_collection/add \
+  -H "Content-Type: application/json" \
+  -d '{
+    "embeddings": [[1.0, 2.0, 3.0]],
+    "documents": ["Document text"],
+    "ids": ["doc1"]
+  }'</pre>
+            </div>
+        </div>
+        
+        <div class="info-card">
+            <h2>Documentation</h2>
+            <p>For more information, visit the official ChromaDB documentation:</p>
+            <ul style="list-style: none; margin-top: 1rem;">
+                <li style="margin-bottom: 0.5rem;">
+                    <a href="https://docs.trychroma.com" target="_blank" style="color: #00b4d8;">
+                        📚 ChromaDB Documentation
+                    </a>
+                </li>
+                <li style="margin-bottom: 0.5rem;">
+                    <a href="https://github.com/chroma-core/chroma" target="_blank" style="color: #00b4d8;">
+                        🐙 GitHub Repository
+                    </a>
+                </li>
+                <li>
+                    <a href="https://docs.trychroma.com/api-reference" target="_blank" style="color: #00b4d8;">
+                        🔌 API Reference
+                    </a>
+                </li>
+            </ul>
+        </div>
+        
+        <a href="/" class="back-link">← Back to Dashboard</a>
+    </div>
+    
+    <script>
+        // Check ChromaDB status
+        async function checkStatus() {
+            const statusEl = document.getElementById('status');
+            const baseUrlEl = document.getElementById('baseUrl');
+            
+            // Update base URL to current host
+            const baseUrl = `http://${window.location.hostname}:8000`;
+            baseUrlEl.textContent = baseUrl;
+            
+            try {
+                const response = await fetch('/api/check-service/chromadb');
+                const data = await response.json();
+                if (data.status === 'online') {
+                    statusEl.textContent = 'Running';
+                    statusEl.style.background = 'rgba(0, 255, 136, 0.2)';
+                    statusEl.style.color = '#00ff88';
+                    statusEl.style.borderColor = '#00ff88';
+                } else {
+                    throw new Error('Service not responding');
+                }
+            } catch (error) {
+                statusEl.textContent = 'Not Available';
+                statusEl.style.background = 'rgba(255, 107, 107, 0.2)';
+                statusEl.style.color = '#ff6b6b';
+                statusEl.style.borderColor = '#ff6b6b';
+            }
+        }
+        
+        // Check status on load
+        checkStatus();
+        
+        // Refresh status every 5 seconds
+        setInterval(checkStatus, 5000);
+    </script>
+</body>
+</html>

@@ -1,0 +1,707 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>AI Box Dashboard</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+        
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+            background: #0f0f0f;
+            color: #e0e0e0;
+            min-height: 100vh;
+            display: flex;
+            flex-direction: column;
+        }
+        
+        header {
+            background: linear-gradient(135deg, #1a1a2e 0%, #16213e 100%);
+            padding: 2rem;
+            box-shadow: 0 4px 20px rgba(0,0,0,0.5);
+        }
+        
+        .header-content {
+            max-width: 1600px;
+            margin: 0 auto;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            flex-wrap: wrap;
+            gap: 1rem;
+        }
+        
+        h1 {
+            font-size: 2.5rem;
+            background: linear-gradient(135deg, #00ff88 0%, #00b4d8 100%);
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+            display: inline-block;
+            margin-bottom: 0.5rem;
+        }
+        
+        .subtitle {
+            color: #888;
+            font-size: 1.1rem;
+        }
+        
+        .system-info {
+            background: rgba(0,0,0,0.3);
+            padding: 1rem;
+            border-radius: 8px;
+            font-size: 0.9rem;
+            line-height: 1.5;
+        }
+        
+        .system-info .info-line {
+            display: flex;
+            gap: 1rem;
+            margin: 0.25rem 0;
+        }
+        
+        .system-info .label {
+            color: #00ff88;
+            font-weight: 500;
+        }
+        
+        main {
+            flex: 1;
+            padding: 2rem;
+            max-width: 1600px;
+            margin: 0 auto;
+            width: 100%;
+        }
+        
+        .stats-overview {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+            gap: 1rem;
+            margin-bottom: 2rem;
+        }
+        
+        .stat-card {
+            background: #1a1a2e;
+            padding: 1.5rem;
+            border-radius: 8px;
+            border: 1px solid #2a2a3e;
+            text-align: center;
+        }
+        
+        .stat-card .value {
+            font-size: 2rem;
+            font-weight: bold;
+            color: #00ff88;
+        }
+        
+        .stat-card .label {
+            color: #888;
+            margin-top: 0.5rem;
+        }
+        
+        .category-section {
+            margin-bottom: 3rem;
+        }
+        
+        .category-title {
+            font-size: 1.5rem;
+            color: #00ff88;
+            margin-bottom: 1rem;
+            display: flex;
+            align-items: center;
+            gap: 0.5rem;
+        }
+        
+        .services-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(350px, 1fr));
+            gap: 2rem;
+        }
+        
+        .service-card {
+            background: #1a1a2e;
+            border-radius: 12px;
+            padding: 2rem;
+            border: 1px solid #2a2a3e;
+            transition: all 0.3s ease;
+            position: relative;
+            overflow: hidden;
+        }
+        
+        .service-card::before {
+            content: '';
+            position: absolute;
+            top: 0;
+            left: 0;
+            right: 0;
+            height: 4px;
+            background: linear-gradient(90deg, #00ff88, #00b4d8);
+            transform: scaleX(0);
+            transition: transform 0.3s ease;
+        }
+        
+        .service-card:hover {
+            transform: translateY(-5px);
+            box-shadow: 0 10px 30px rgba(0,0,0,0.4);
+            border-color: #00ff88;
+        }
+        
+        .service-card:hover::before {
+            transform: scaleX(1);
+        }
+        
+        .service-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 1.5rem;
+        }
+        
+        .service-name {
+            font-size: 1.4rem;
+            font-weight: 600;
+            color: #fff;
+        }
+        
+        .status-badge {
+            padding: 0.4rem 1rem;
+            border-radius: 20px;
+            font-size: 0.85rem;
+            font-weight: 500;
+            text-transform: uppercase;
+        }
+        
+        .status-running {
+            background: rgba(0, 255, 136, 0.2);
+            color: #00ff88;
+            border: 1px solid #00ff88;
+        }
+        
+        .status-stopped {
+            background: rgba(255, 107, 107, 0.2);
+            color: #ff6b6b;
+            border: 1px solid #ff6b6b;
+        }
+        
+        .status-starting, .status-restarting {
+            background: rgba(255, 193, 7, 0.2);
+            color: #ffc107;
+            border: 1px solid #ffc107;
+        }
+        
+        .service-info {
+            color: #aaa;
+            font-size: 0.9rem;
+            margin-bottom: 1rem;
+        }
+        
+        .service-stats {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 1rem;
+            margin: 1rem 0;
+            padding: 1rem;
+            background: rgba(0,0,0,0.3);
+            border-radius: 8px;
+        }
+        
+        .stat {
+            text-align: center;
+        }
+        
+        .stat-label {
+            color: #666;
+            font-size: 0.8rem;
+            text-transform: uppercase;
+        }
+        
+        .stat-value {
+            color: #00b4d8;
+            font-size: 1.2rem;
+            font-weight: bold;
+            margin-top: 0.25rem;
+        }
+        
+        .service-actions {
+            display: flex;
+            gap: 0.5rem;
+            margin-top: 1.5rem;
+        }
+        
+        .btn {
+            flex: 1;
+            padding: 0.7rem 1.2rem;
+            border: none;
+            border-radius: 6px;
+            font-size: 0.9rem;
+            font-weight: 500;
+            cursor: pointer;
+            transition: all 0.2s ease;
+            text-decoration: none;
+            text-align: center;
+            color: white;
+        }
+        
+        .btn:hover {
+            transform: translateY(-2px);
+        }
+        
+        .btn-primary {
+            background: linear-gradient(135deg, #00ff88, #00b4d8);
+        }
+        
+        .btn-secondary {
+            background: #2a2a3e;
+            border: 1px solid #3a3a4e;
+        }
+        
+        .btn-danger {
+            background: #dc3545;
+        }
+        
+        .btn:disabled {
+            opacity: 0.5;
+            cursor: not-allowed;
+        }
+        
+        .gpu-section {
+            margin-top: 3rem;
+            padding: 2rem;
+            background: #1a1a2e;
+            border-radius: 12px;
+            border: 1px solid #2a2a3e;
+        }
+        
+        .gpu-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(400px, 1fr));
+            gap: 2rem;
+            margin-top: 1.5rem;
+        }
+        
+        .gpu-card {
+            background: rgba(0,0,0,0.3);
+            padding: 1.5rem;
+            border-radius: 8px;
+        }
+        
+        .gpu-header {
+            font-size: 1.2rem;
+            color: #00ff88;
+            margin-bottom: 1rem;
+        }
+        
+        .gpu-metrics {
+            display: grid;
+            grid-template-columns: repeat(2, 1fr);
+            gap: 1rem;
+        }
+        
+        .metric {
+            background: rgba(255,255,255,0.05);
+            padding: 1rem;
+            border-radius: 6px;
+            text-align: center;
+        }
+        
+        .metric-label {
+            color: #888;
+            font-size: 0.8rem;
+            text-transform: uppercase;
+        }
+        
+        .metric-value {
+            font-size: 1.5rem;
+            font-weight: bold;
+            color: #00b4d8;
+            margin-top: 0.5rem;
+        }
+        
+        .loading {
+            text-align: center;
+            padding: 4rem;
+            color: #666;
+        }
+        
+        .error {
+            background: rgba(255, 107, 107, 0.1);
+            border: 1px solid #ff6b6b;
+            padding: 1rem;
+            border-radius: 8px;
+            color: #ff6b6b;
+            margin: 1rem 0;
+        }
+        
+        footer {
+            background: #1a1a2e;
+            padding: 2rem;
+            text-align: center;
+            color: #666;
+        }
+        
+        footer a {
+            color: #00ff88;
+            text-decoration: none;
+        }
+        
+        footer a:hover {
+            text-decoration: underline;
+        }
+
+        @media (max-width: 768px) {
+            .services-grid, .gpu-grid {
+                grid-template-columns: 1fr;
+            }
+            
+            h1 {
+                font-size: 2rem;
+            }
+        }
+    </style>
+</head>
+<body>
+    <header>
+        <div class="header-content">
+            <div>
+                <h1>AI Box Dashboard</h1>
+                <p class="subtitle">GPU-Accelerated AI Services Platform</p>
+            </div>
+            <div class="system-info" id="systemInfo">
+                <div class="loading">Loading system info...</div>
+            </div>
+        </div>
+    </header>
+    
+    <main>
+        <div class="stats-overview" id="statsOverview">
+            <div class="stat-card">
+                <div class="value" id="totalServices">-</div>
+                <div class="label">Total Services</div>
+            </div>
+            <div class="stat-card">
+                <div class="value" id="runningServices">-</div>
+                <div class="label">Running</div>
+            </div>
+            <div class="stat-card">
+                <div class="value" id="cpuUsage">-</div>
+                <div class="label">CPU Usage</div>
+            </div>
+            <div class="stat-card">
+                <div class="value" id="memUsage">-</div>
+                <div class="label">Memory Usage</div>
+            </div>
+        </div>
+
+        <div id="servicesContainer">
+            <div class="loading">Loading services...</div>
+        </div>
+        
+        <div class="gpu-section">
+            <h2 class="category-title">🖥️ GPU Metrics</h2>
+            <div id="gpuContainer" class="gpu-grid">
+                <div class="loading">Loading GPU metrics...</div>
+            </div>
+        </div>
+    </main>
+    
+    <footer>
+        <p>AI Box Dashboard v2 | <a href="/metrics" target="_blank">Raw Metrics</a> | <a href="https://github.com/anthropics/claude-ai-deployment" target="_blank">Documentation</a></p>
+    </footer>
+
+    <script>
+        // API endpoints
+        const API = {
+            system: '/api/system',
+            services: '/api/services',
+            gpu: '/api/gpu/metrics',
+            control: (service, action) => `/api/services/${service}/${action}`
+        };
+
+        // State
+        let services = [];
+        let systemInfo = null;
+
+        // Utility functions
+        function formatBytes(bytes) {
+            const units = ['B', 'KB', 'MB', 'GB', 'TB'];
+            let i = 0;
+            while (bytes >= 1024 && i < units.length - 1) {
+                bytes /= 1024;
+                i++;
+            }
+            return `${bytes.toFixed(1)} ${units[i]}`;
+        }
+
+        function formatUptime(seconds) {
+            const days = Math.floor(seconds / 86400);
+            const hours = Math.floor((seconds % 86400) / 3600);
+            const minutes = Math.floor((seconds % 3600) / 60);
+            
+            if (days > 0) return `${days}d ${hours}h`;
+            if (hours > 0) return `${hours}h ${minutes}m`;
+            return `${minutes}m`;
+        }
+
+        // Fetch system information
+        async function fetchSystemInfo() {
+            try {
+                const response = await fetch(API.system);
+                systemInfo = await response.json();
+                updateSystemInfo();
+            } catch (error) {
+                console.error('Failed to fetch system info:', error);
+            }
+        }
+
+        // Update system info display
+        function updateSystemInfo() {
+            if (!systemInfo) return;
+            
+            const systemInfoEl = document.getElementById('systemInfo');
+            const nvidia = systemInfo.nvidia;
+            
+            let html = '<div class="system-info-grid">';
+            
+            if (nvidia && nvidia.gpus && nvidia.gpus.length > 0) {
+                html += `
+                    <div class="info-line">
+                        <span class="label">Driver:</span> ${nvidia.gpus[0].driver}
+                    </div>
+                    <div class="info-line">
+                        <span class="label">CUDA:</span> ${nvidia.cuda_driver || 'N/A'} (Driver) / ${nvidia.cuda_toolkit || 'N/A'} (Toolkit)
+                    </div>
+                    <div class="info-line">
+                        <span class="label">GPUs:</span> ${nvidia.gpus.map(g => g.name).join(', ')}
+                    </div>
+                `;
+            }
+            
+            html += `
+                <div class="info-line">
+                    <span class="label">System:</span> ${systemInfo.hostname} - ${systemInfo.os}
+                </div>
+            `;
+            
+            html += '</div>';
+            systemInfoEl.innerHTML = html;
+            
+            // Update stats
+            document.getElementById('cpuUsage').textContent = `${systemInfo.cpu.usage.toFixed(1)}%`;
+            document.getElementById('memUsage').textContent = `${systemInfo.memory.percent.toFixed(1)}%`;
+        }
+
+        // Fetch services
+        async function fetchServices() {
+            try {
+                const response = await fetch(API.services);
+                const data = await response.json();
+                services = data.services;
+                updateServices();
+                updateStats();
+            } catch (error) {
+                console.error('Failed to fetch services:', error);
+                document.getElementById('servicesContainer').innerHTML = 
+                    '<div class="error">Failed to load services. Please check the backend connection.</div>';
+            }
+        }
+
+        // Update services display
+        function updateServices() {
+            const container = document.getElementById('servicesContainer');
+            const categories = {};
+            
+            // Group services by category
+            services.forEach(service => {
+                const category = service.category || 'Other';
+                if (!categories[category]) {
+                    categories[category] = [];
+                }
+                categories[category].push(service);
+            });
+            
+            // Generate HTML
+            let html = '';
+            Object.entries(categories).forEach(([category, categoryServices]) => {
+                html += `
+                    <div class="category-section">
+                        <h2 class="category-title">${getCategoryIcon(category)} ${category}</h2>
+                        <div class="services-grid">
+                `;
+                
+                categoryServices.forEach(service => {
+                    const statusClass = `status-${service.status}`;
+                    const url = service.default_port ? `http://localhost:${service.default_port}` : '#';
+                    
+                    html += `
+                        <div class="service-card">
+                            <div class="service-header">
+                                <h3 class="service-name">${service.name}</h3>
+                                <span class="status-badge ${statusClass}">${service.status}</span>
+                            </div>
+                            <div class="service-info">${service.image}</div>
+                    `;
+                    
+                    if (service.stats && service.status === 'running') {
+                        html += `
+                            <div class="service-stats">
+                                <div class="stat">
+                                    <div class="stat-label">CPU</div>
+                                    <div class="stat-value">${service.stats.cpu}%</div>
+                                </div>
+                                <div class="stat">
+                                    <div class="stat-label">Memory</div>
+                                    <div class="stat-value">${service.stats.memory.percent}%</div>
+                                </div>
+                            </div>
+                        `;
+                    }
+                    
+                    html += `
+                            <div class="service-actions">
+                    `;
+                    
+                    if (service.status === 'running') {
+                        if (service.default_port) {
+                            html += `<a href="${url}" target="_blank" class="btn btn-primary">Open UI</a>`;
+                        }
+                        html += `
+                            <button class="btn btn-secondary" onclick="controlService('${service.name}', 'restart')">Restart</button>
+                            <button class="btn btn-danger" onclick="controlService('${service.name}', 'stop')">Stop</button>
+                        `;
+                    } else {
+                        html += `
+                            <button class="btn btn-primary" onclick="controlService('${service.name}', 'start')">Start</button>
+                        `;
+                    }
+                    
+                    html += `
+                            </div>
+                        </div>
+                    `;
+                });
+                
+                html += `
+                        </div>
+                    </div>
+                `;
+            });
+            
+            container.innerHTML = html;
+        }
+
+        // Update stats
+        function updateStats() {
+            const total = services.length;
+            const running = services.filter(s => s.status === 'running').length;
+            
+            document.getElementById('totalServices').textContent = total;
+            document.getElementById('runningServices').textContent = running;
+        }
+
+        // Get category icon
+        function getCategoryIcon(category) {
+            const icons = {
+                'LLM Services': '🤖',
+                'Image Generation': '🎨',
+                'Automation': '⚡',
+                'Database': '💾',
+                'Audio': '🎵',
+                'Monitoring': '📊',
+                'Other': '📦'
+            };
+            return icons[category] || '📦';
+        }
+
+        // Control service
+        async function controlService(serviceName, action) {
+            try {
+                const response = await fetch(API.control(serviceName, action), {
+                    method: 'POST'
+                });
+                
+                if (response.ok) {
+                    // Refresh services after a short delay
+                    setTimeout(fetchServices, 1000);
+                } else {
+                    const error = await response.json();
+                    alert(`Failed to ${action} ${serviceName}: ${error.error}`);
+                }
+            } catch (error) {
+                console.error(`Failed to ${action} ${serviceName}:`, error);
+                alert(`Failed to ${action} ${serviceName}`);
+            }
+        }
+
+        // Fetch GPU metrics
+        async function fetchGPUMetrics() {
+            try {
+                const response = await fetch(API.gpu);
+                const data = await response.json();
+                updateGPUMetrics(data.gpus);
+            } catch (error) {
+                console.error('Failed to fetch GPU metrics:', error);
+            }
+        }
+
+        // Update GPU metrics display
+        function updateGPUMetrics(gpus) {
+            const container = document.getElementById('gpuContainer');
+            
+            if (!gpus || gpus.length === 0) {
+                container.innerHTML = '<div class="error">No GPU metrics available</div>';
+                return;
+            }
+            
+            let html = '';
+            gpus.forEach(gpu => {
+                html += `
+                    <div class="gpu-card">
+                        <h3 class="gpu-header">GPU ${gpu.index}: ${gpu.name}</h3>
+                        <div class="gpu-metrics">
+                            <div class="metric">
+                                <div class="metric-label">Temperature</div>
+                                <div class="metric-value">${gpu.temperature}°C</div>
+                            </div>
+                            <div class="metric">
+                                <div class="metric-label">Utilization</div>
+                                <div class="metric-value">${gpu.gpu_util}%</div>
+                            </div>
+                            <div class="metric">
+                                <div class="metric-label">Memory</div>
+                                <div class="metric-value">${gpu.mem_util}%</div>
+                            </div>
+                            <div class="metric">
+                                <div class="metric-label">Power</div>
+                                <div class="metric-value">${gpu.power_draw}W</div>
+                            </div>
+                        </div>
+                    </div>
+                `;
+            });
+            
+            container.innerHTML = html;
+        }
+
+        // Initialize and set up auto-refresh
+        async function initialize() {
+            await fetchSystemInfo();
+            await fetchServices();
+            await fetchGPUMetrics();
+            
+            // Refresh every 2 seconds
+            setInterval(async () => {
+                await fetchSystemInfo();
+                await fetchServices();
+                await fetchGPUMetrics();
+            }, 2000);
+        }
+
+        // Start the dashboard
+        initialize();
+    </script>
+</body>
+</html>

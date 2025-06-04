@@ -1,0 +1,381 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Ollama API Information</title>
+    <style>
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+            background: #0f0f0f;
+            color: #e0e0e0;
+            min-height: 100vh;
+            display: flex;
+            flex-direction: column;
+            padding: 2rem;
+        }
+        
+        .container {
+            max-width: 800px;
+            margin: 0 auto;
+            width: 100%;
+        }
+        
+        h1 {
+            font-size: 2.5rem;
+            background: linear-gradient(135deg, #00ff88 0%, #00b4d8 100%);
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+            margin-bottom: 1rem;
+        }
+        
+        .subtitle {
+            color: #888;
+            font-size: 1.2rem;
+            margin-bottom: 2rem;
+        }
+        
+        .info-card {
+            background: #1a1a2e;
+            border-radius: 12px;
+            padding: 2rem;
+            border: 1px solid #2a2a3e;
+            margin-bottom: 2rem;
+        }
+        
+        .info-card h2 {
+            color: #00ff88;
+            margin-bottom: 1rem;
+            font-size: 1.5rem;
+        }
+        
+        .back-btn {
+            display: inline-block;
+            background: linear-gradient(135deg, #00ff88 0%, #00b4d8 100%);
+            color: #000;
+            padding: 0.75rem 1.5rem;
+            border-radius: 8px;
+            text-decoration: none;
+            font-weight: 600;
+            margin-bottom: 2rem;
+            transition: transform 0.2s ease;
+        }
+        
+        .back-btn:hover {
+            transform: translateY(-2px);
+        }
+        
+        
+        .status-badge {
+            padding: 0.5rem 1rem;
+            border-radius: 20px;
+            font-size: 0.9rem;
+            border: 1px solid;
+        }
+        
+        code {
+            background: #2a2a3e;
+            padding: 0.2rem 0.5rem;
+            border-radius: 4px;
+            color: #00b4d8;
+            font-family: 'Monaco', 'Menlo', 'Ubuntu Mono', monospace;
+        }
+        
+        .code-block {
+            background: #2a2a3e;
+            border-radius: 8px;
+            padding: 1.5rem;
+            margin: 1rem 0;
+            border-left: 4px solid #00ff88;
+            overflow-x: auto;
+        }
+        
+        .code-block pre {
+            color: #e0e0e0;
+            font-family: 'Monaco', 'Menlo', 'Ubuntu Mono', monospace;
+            font-size: 0.9rem;
+            line-height: 1.4;
+        }
+        
+        .endpoint {
+            background: #1e1e2e;
+            border-left: 4px solid #00b4d8;
+            padding: 1rem;
+            margin: 1rem 0;
+            border-radius: 0 8px 8px 0;
+        }
+        
+        .endpoint-label {
+            color: #666;
+            font-size: 0.9rem;
+            margin-bottom: 0.5rem;
+        }
+        
+        .endpoint-url {
+            color: #00b4d8;
+            font-size: 1.1rem;
+        }
+        
+        .method {
+            display: inline-block;
+            padding: 0.2rem 0.6rem;
+            border-radius: 4px;
+            font-size: 0.8rem;
+            font-weight: bold;
+            margin-right: 0.5rem;
+            color: white;
+        }
+        
+        .method-get { background: #4CAF50; }
+        .method-post { background: #2196F3; }
+        .method-delete { background: #f44336; }
+        
+        .url-path {
+            font-family: monospace;
+            color: #00b4d8;
+            font-size: 1.1rem;
+        }
+        
+        .note {
+            background: rgba(255, 193, 7, 0.1);
+            border: 1px solid #ffc107;
+            border-radius: 8px;
+            padding: 1rem;
+            margin: 1rem 0;
+            color: #ffc107;
+        }
+        
+        .model-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(250px, 1fr));
+            gap: 1rem;
+            margin: 1rem 0;
+        }
+        
+        .model-item {
+            background: #2a2a3e;
+            padding: 1rem;
+            border-radius: 8px;
+            border-left: 3px solid #00ff88;
+        }
+        
+        .model-name {
+            color: #00b4d8;
+            font-weight: 600;
+            margin-bottom: 0.5rem;
+        }
+        
+        .model-desc {
+            color: #ccc;
+            font-size: 0.9rem;
+        }
+        
+        ul {
+            list-style: none;
+            padding-left: 0;
+        }
+        
+        li {
+            padding: 0.5rem 0;
+            border-bottom: 1px solid #333;
+        }
+        
+        li:before {
+            content: "▸ ";
+            color: #00ff88;
+            font-weight: bold;
+            margin-right: 0.5rem;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <a href="/" class="back-btn">← Back to Dashboard</a>
+        
+        <h1>🦙 Ollama API</h1>
+        <p class="subtitle">Local Large Language Model Server</p>
+        
+        <div class="info-card">
+            <h2>Service Status</h2>
+            <span class="status-badge" id="status">Checking...</span>
+            
+            <h2 style="margin-top: 2rem;">API Endpoint</h2>
+            <div class="endpoint">
+                <div class="endpoint-label">Base URL:</div>
+                <div class="endpoint-url" id="baseUrl">http://0.0.0.0:11434</div>
+            </div>
+        </div>
+
+        <div class="info-card">
+            <h2>📋 Service Overview</h2>
+            <p>Ollama provides a REST API for running large language models locally. It's designed to be simple and efficient, with support for various models including Llama, Mistral, Code Llama, and many others.</p>
+            
+            <div class="note">
+                <strong>Note:</strong> This is an API-only service. Interaction is done through HTTP requests to the endpoints listed below.
+            </div>
+        </div>
+
+        <div class="info-card">
+            <h2>🚀 Quick Start</h2>
+            
+            <h3>List Available Models</h3>
+            <div class="endpoint">
+                <span class="method method-get">GET</span>
+                <span class="url-path">/api/tags</span>
+            </div>
+            <div class="code-block">
+                <pre>curl http://192.168.20.54:11434/api/tags</pre>
+            </div>
+
+            <h3>Pull a Model</h3>
+            <div class="endpoint">
+                <span class="method method-post">POST</span>
+                <span class="url-path">/api/pull</span>
+            </div>
+            <div class="code-block">
+                <pre>curl -X POST http://192.168.20.54:11434/api/pull \
+  -H "Content-Type: application/json" \
+  -d '{"name": "llama3.2:3b"}'</pre>
+            </div>
+
+            <h3>Generate Text</h3>
+            <div class="endpoint">
+                <span class="method method-post">POST</span>
+                <span class="url-path">/api/generate</span>
+            </div>
+            <div class="code-block">
+                <pre>curl -X POST http://192.168.20.54:11434/api/generate \
+  -H "Content-Type: application/json" \
+  -d '{
+    "model": "llama3.2:3b",
+    "prompt": "Why is the sky blue?",
+    "stream": false
+  }'</pre>
+            </div>
+        </div>
+
+        <div class="info-card">
+            <h2>🐍 Python Integration</h2>
+            
+            <h3>Official Ollama Client</h3>
+            <div class="code-block">
+                <pre># Install the client
+pip install ollama
+
+# Basic usage
+import ollama
+
+client = ollama.Client(host='http://192.168.20.54:11434')
+
+response = client.generate(
+    model='llama3.2:3b',
+    prompt='Explain quantum computing'
+)
+print(response['response'])</pre>
+            </div>
+            
+            <h3>OpenAI Compatible Client</h3>
+            <div class="code-block">
+                <pre>from openai import OpenAI
+
+client = OpenAI(
+    base_url='http://192.168.20.54:11434/v1',
+    api_key='ollama'  # required but unused
+)
+
+response = client.chat.completions.create(
+    model="llama3.2:3b",
+    messages=[{"role": "user", "content": "Hello!"}]
+)
+print(response.choices[0].message.content)</pre>
+            </div>
+        </div>
+
+        <div class="info-card">
+            <h2>📦 Popular Models</h2>
+            <div class="note">
+                Models need to be pulled before use. Use <code>POST /api/pull</code> to download models.
+            </div>
+            
+            <div class="model-grid">
+                <div class="model-item">
+                    <div class="model-name">llama3.2:1b</div>
+                    <div class="model-desc">Fast, lightweight (1.3GB)<br>Good for testing and simple tasks</div>
+                </div>
+                <div class="model-item">
+                    <div class="model-name">llama3.2:3b</div>
+                    <div class="model-desc">Balanced performance (2.0GB)<br>Great for general use</div>
+                </div>
+                <div class="model-item">
+                    <div class="model-name">llama3.1:8b</div>
+                    <div class="model-desc">High quality (4.7GB)<br>Better reasoning capabilities</div>
+                </div>
+                <div class="model-item">
+                    <div class="model-name">mistral:7b</div>
+                    <div class="model-desc">Fast and capable (4.1GB)<br>Excellent for conversation</div>
+                </div>
+                <div class="model-item">
+                    <div class="model-name">codellama:7b</div>
+                    <div class="model-desc">Code specialist (3.8GB)<br>Optimized for programming</div>
+                </div>
+                <div class="model-item">
+                    <div class="model-name">llama3.1:70b</div>
+                    <div class="model-desc">Highest quality (40GB)<br>Professional grade responses</div>
+                </div>
+            </div>
+        </div>
+
+        <div class="info-card">
+            <h2>🔌 Available Endpoints</h2>
+            <ul>
+                <li><strong>GET /api/tags</strong> - List downloaded models</li>
+                <li><strong>POST /api/pull</strong> - Download a model</li>
+                <li><strong>POST /api/generate</strong> - Generate text</li>
+                <li><strong>POST /api/chat</strong> - Chat conversation format</li>
+                <li><strong>POST /api/create</strong> - Create custom model</li>
+                <li><strong>DELETE /api/delete</strong> - Remove a model</li>
+                <li><strong>POST /api/embeddings</strong> - Generate embeddings</li>
+            </ul>
+        </div>
+        
+        <div class="back-link">
+            <a href="/" class="back-btn">← Return to AI Box Dashboard</a>
+        </div>
+    </div>
+
+    <script>
+        // Check Ollama status
+        async function checkStatus() {
+            const statusEl = document.getElementById('status');
+            const baseUrlEl = document.getElementById('baseUrl');
+            
+            // Update base URL to current host
+            const baseUrl = `http://${window.location.hostname}:11434`;
+            baseUrlEl.textContent = baseUrl;
+            
+            try {
+                const response = await fetch('/api/check-service/ollama');
+                const data = await response.json();
+                if (data.status === 'online') {
+                    statusEl.textContent = 'Running';
+                    statusEl.style.background = 'rgba(0, 255, 136, 0.2)';
+                    statusEl.style.color = '#00ff88';
+                    statusEl.style.borderColor = '#00ff88';
+                } else {
+                    throw new Error('Service not responding');
+                }
+            } catch (error) {
+                statusEl.textContent = 'Not Available';
+                statusEl.style.background = 'rgba(255, 107, 107, 0.2)';
+                statusEl.style.color = '#ff6b6b';
+                statusEl.style.borderColor = '#ff6b6b';
+            }
+        }
+        
+        // Check status on load
+        checkStatus();
+    </script>
+</body>
+</html>

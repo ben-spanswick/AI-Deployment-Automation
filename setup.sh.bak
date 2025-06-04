@@ -132,7 +132,7 @@ SERVICE_INFO["n8n"]="n8n|Workflow automation for AI chains|automation"
 SERVICE_PORTS["n8n"]="5678"
 SERVICE_IMAGES["n8n"]="n8nio/n8n:latest"
 SERVICE_VOLUMES["n8n"]="n8n:/home/node/.n8n"
-SERVICE_ENV["n8n"]="N8N_SECURE_COOKIE=false;N8N_HOST=0.0.0.0;N8N_PORT=5678;NODE_ENV=production;WEBHOOK_URL=http://localhost:5678/"
+SERVICE_ENV["n8n"]="N8N_SECURE_COOKIE=false;N8N_HOST=0.0.0.0"
 SERVICE_REQUIRES["n8n"]=""
 
 # Whisper - Speech to text
@@ -148,11 +148,11 @@ SERVICE_PORTS["forge"]="7860"
 # SD Forge recommended image - CUDA 12.1 + PyTorch 2.3.1
 SERVICE_IMAGES["forge"]="nykk3/stable-diffusion-webui-forge:latest"
 SERVICE_VOLUMES["forge"]="models/stable-diffusion:/app/stable-diffusion-webui/models/Stable-diffusion;models/loras:/app/stable-diffusion-webui/models/Lora;models/vae:/app/stable-diffusion-webui/models/VAE;outputs/forge:/app/stable-diffusion-webui/outputs"
-SERVICE_ENV["forge"]="COMMANDLINE_ARGS=--listen --api --xformers --medvram --skip-torch-cuda-test --skip-version-check --no-download-sd-model"
+SERVICE_ENV["forge"]="COMMANDLINE_ARGS=--listen --api --xformers --medvram"
 
 SERVICE_INFO["comfyui"]="ComfyUI|Node-based workflow (FLUX support!)|image"
 SERVICE_PORTS["comfyui"]="8188"
-SERVICE_IMAGES["comfyui"]="yanwk/comfyui-boot:cu121"
+SERVICE_IMAGES["comfyui"]="yanwk/comfyui-boot:latest"
 SERVICE_VOLUMES["comfyui"]="comfyui:/workspace;models:/workspace/models;comfyui/output:/workspace/output"
 SERVICE_ENV["comfyui"]="CLI_ARGS=--listen"
 
@@ -893,16 +893,7 @@ update_existing_services() {
             
             if [[ "$restart" =~ ^[Yy]$ ]]; then
                 cd /opt/ai-box
-                # Stop ALL containers on ai-network first
-                echo "Stopping all AI Box services..."
-                docker ps -q --filter "network=ai-network" | xargs -r docker stop
-                docker ps -aq --filter "network=ai-network" | xargs -r docker rm
-                
-                # Also try docker-compose down if compose file exists
-                if [[ -f "/opt/ai-box/docker-compose.yml" ]]; then
-                    cd /opt/ai-box
-                    run_as_user docker compose down || true
-                fi
+                run_as_user docker compose down
                 run_as_user docker compose up -d
                 success "Services updated and restarted"
             else
@@ -916,16 +907,7 @@ update_existing_services() {
             if [[ "$confirm" == "yes" ]]; then
                 # Stop all services
                 cd /opt/ai-box
-                # Stop ALL containers on ai-network first
-                echo "Stopping all AI Box services..."
-                docker ps -q --filter "network=ai-network" | xargs -r docker stop
-                docker ps -aq --filter "network=ai-network" | xargs -r docker rm
-                
-                # Also try docker-compose down if compose file exists
-                if [[ -f "/opt/ai-box/docker-compose.yml" ]]; then
-                    cd /opt/ai-box
-                    run_as_user docker compose down || true
-                fi
+                run_as_user docker compose down
                 
                 # Wait for containers to fully stop
                 log "Waiting for services to stop..."
@@ -1389,13 +1371,6 @@ EOF
             
             echo "      - $host_path:$container_path" >> "/opt/ai-box/docker-compose.yml"
         done
-        
-        # Add CUDA 12.1 library mounts for Forge
-        if [[ "$service" == "forge" ]] && [[ -d "/usr/local/cuda-12.1" ]]; then
-            echo "      # CUDA 12.1 compatibility fix" >> "/opt/ai-box/docker-compose.yml"
-            echo "      - /usr/local/cuda-12.1/lib64:/usr/local/cuda/lib64:ro" >> "/opt/ai-box/docker-compose.yml"
-            echo "      - /usr/local/cuda-12.1/compat:/usr/local/cuda/compat:ro" >> "/opt/ai-box/docker-compose.yml"
-        fi
     fi
     
     # Add environment
@@ -1423,11 +1398,6 @@ EOF
               device_ids: [$(echo ${!gpus} | sed "s/,/','/g" | sed "s/^/'/" | sed "s/$/'/")]
               capabilities: [gpu]
 EOF
-    fi
-    
-    # Add shm_size for GPU services
-    if [[ "$service" == "forge" ]] || [[ "$service" == "comfyui" ]]; then
-        echo "    shm_size: 8gb" >> "/opt/ai-box/docker-compose.yml"
     fi
     
     # Common settings

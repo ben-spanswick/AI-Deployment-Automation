@@ -1,0 +1,157 @@
+---
+# docker-setup/tasks/main.yml - Install and configure Docker with GPU support
+
+- name: Install Docker prerequisites
+  apt:
+    name:
+      - apt-transport-https
+      - ca-certificates
+      - curl
+      - gnupg
+      - lsb-release
+      - software-properties-common
+    state: present
+    update_cache: yes
+
+- name: Create Docker keyring directory
+  file:
+    path: /etc/apt/keyrings
+    state: directory
+    mode: '0755'
+
+- name: Add Docker GPG key
+  get_url:
+    url: https://download.docker.com/linux/ubuntu/gpg
+    dest: /etc/apt/keyrings/docker.asc
+    mode: '0644'
+
+- name: Add Docker repository
+  apt_repository:
+    repo: "deb [arch={{ ansible_architecture }} signed-by=/etc/apt/keyrings/docker.asc] https://download.docker.com/linux/ubuntu {{ ansible_distribution_release }} stable"
+    state: present
+    filename: docker
+
+- name: Install Docker packages
+  apt:
+    name:
+      - docker-ce
+      - docker-ce-cli
+      - containerd.io
+      - docker-buildx-plugin
+      - docker-compose-plugin
+    state: present
+    update_cache: yes
+
+- name: Ensure Docker service is started and enabled
+  systemd:
+    name: docker
+    state: started
+    enabled: yes
+
+- name: Create Docker daemon configuration directory
+  file:
+    path: /etc/docker
+    state: directory
+    mode: '0755'
+
+- name: Configure Docker daemon for GPU support
+  copy:
+    dest: /etc/docker/daemon.json
+    content: |
+      {
+        "log-driver": "json-file",
+        "log-opts": {
+          "max-size": "100m",
+          "max-file": "5"
+        },
+        "storage-driver": "overlay2",
+        "default-runtime": "nvidia",
+        "runtimes": {
+          "nvidia": {
+            "path": "nvidia-container-runtime",
+            "runtimeArgs": []
+          }
+        },
+        "exec-opts": ["native.cgroupdriver=systemd"],
+        "features": {
+          "buildkit": true
+        },
+        "experimental": false
+      }
+    backup: yes
+  notify: restart docker
+
+- name: Add user to docker group
+  user:
+    name: "{{ ansible_user }}"
+    groups: docker
+    append: yes
+
+- name: Create Docker network for AI services
+  docker_network:
+    name: ai-network
+    driver: bridge
+    ipam_config:
+      - subnet: 172.20.0.0/16
+        gateway: 172.20.0.1
+
+- name: Install docker-compose standalone (fallback)
+  get_url:
+    url: "https://github.com/docker/compose/releases/latest/download/docker-compose-linux-{{ ansible_architecture }}"
+    dest: /usr/local/bin/docker-compose
+    mode: '0755'
+  when: ansible_architecture == "x86_64"
+
+- name: Verify Docker installation
+  command: docker version
+  register: docker_version
+  changed_when: false
+
+- name: Display Docker version
+  debug:
+    msg: "Docker installed: {{ docker_version.stdout_lines[0] }}"
+
+- name: Test Docker GPU support
+  command: docker run --rm --gpus all nvidia/cuda:11.8.0-base-ubuntu22.04 nvidia-smi
+  register: docker_gpu_test
+  failed_when: false
+  changed_when: false
+
+- name: Display GPU test results
+  debug:
+    msg: |
+      {% if docker_gpu_test.rc == 0 %}
+      ✅ Docker GPU support is working correctly
+      {% else %}
+      ⚠️  Docker GPU support test failed. This may be normal if NVIDIA drivers are not yet installed.
+      {% endif %}
+
+- name: Create Docker directories
+  file:
+    path: "{{ item }}"
+    state: directory
+    owner: "{{ ansible_user }}"
+    group: "{{ ansible_user }}"
+    mode: '0755'
+  loop:
+    - /opt/ai-box
+    - /opt/ai-box/models
+    - /opt/ai-box/data
+    - /opt/ai-box/outputs
+    - /opt/ai-box/logs
+
+- name: Set Docker socket permissions
+  file:
+    path: /var/run/docker.sock
+    mode: '0666'
+  changed_when: false
+
+# Handlers
+- name: Define handlers
+  block:
+    - name: restart docker handler
+      systemd:
+        name: docker
+        state: restarted
+        daemon_reload: yes
+      listen: restart docker
