@@ -1,54 +1,54 @@
-# 🤖 AI Box - Complete GPU-Accelerated AI Services Platform
+# AI Box - Complete GPU-Accelerated AI Services Platform
 
 ![AI Box Dashboard](resources/dashboard-screenshot.png)
 
-A production-ready platform for deploying and managing GPU-accelerated AI services with a unified web dashboard. Deploy multiple AI services (LLMs, image generation, vector databases, workflow automation) with a single command on any NVIDIA GPU-equipped Linux system.
+A production-ready platform for deploying and managing GPU-accelerated AI services with a unified web dashboard. Deploy multiple AI services including LLMs, image generation, vector databases, and workflow automation with a single command on any NVIDIA GPU-equipped Linux system.
 
-## ✨ Key Features
+## Key Features
 
-- **🚀 One-Command Deployment**: Automated setup with GPU driver installation
-- **🎮 Modern Web Dashboard**: Real-time monitoring with GPU metrics
-- **🔧 Containerized Architecture**: Docker-based services with proper isolation
-- **📊 Live GPU Monitoring**: Real-time temperature, utilization, and VRAM usage
-- **🌐 Network-Agnostic**: Works on any network with dynamic IP configuration
-- **🔒 Security-First**: Input validation, proper error handling, and service isolation
+- **One-Command Deployment**: Automated setup with GPU driver installation
+- **Modern Web Dashboard**: Real-time monitoring with GPU metrics
+- **Containerized Architecture**: Docker-based services with proper isolation
+- **Live GPU Monitoring**: Real-time temperature, utilization, and VRAM usage
+- **Network-Agnostic**: Works on any network with dynamic IP configuration
+- **Security-First**: Input validation, proper error handling, and service isolation
 
-## 🛠️ Included Services
+## Included Services
 
-### 🤖 Language Models (LLMs)
-- **LocalAI** `8080` - OpenAI-compatible API for local LLMs with CUDA acceleration
-- **Ollama** `11434` - Easy model management with extensive model library
+### Language Models (LLMs)
+- **LocalAI** (Port 8080) - OpenAI-compatible API for local LLMs with CUDA acceleration
+- **Ollama** (Port 11434) - Easy model management with extensive model library
 
-### 🎨 Image Generation  
-- **Stable Diffusion Forge** `7860` - Optimized WebUI with FLUX and advanced features
-- **ComfyUI** `8188` - Node-based workflow system for advanced image generation
+### Image Generation  
+- **Stable Diffusion Forge** (Port 7860) - Optimized WebUI with FLUX and advanced features
+- **ComfyUI** (Port 8188) - Node-based workflow system for advanced image generation
 
-### 🗄️ Infrastructure & Automation
-- **ChromaDB** `8000` - Vector database for RAG applications and embeddings
-- **n8n** `5678` - Workflow automation and AI chain orchestration  
-- **Whisper** `9000` - OpenAI Whisper speech-to-text transcription
+### Infrastructure & Automation
+- **ChromaDB** (Port 8000) - Vector database for RAG applications and embeddings
+- **n8n** (Port 5678) - Workflow automation and AI chain orchestration  
+- **Whisper** (Port 9000) - OpenAI Whisper speech-to-text transcription
 
-### 📊 Monitoring
-- **AI Box Dashboard** `8085` - Unified control panel with GPU monitoring
-- **GPU Metrics Server** `9999` - Real-time NVIDIA GPU telemetry
+### Monitoring
+- **AI Box Dashboard** (Port 8085) - Unified control panel with GPU monitoring
+- **GPU Metrics Server** (Port 9999) - Real-time NVIDIA GPU telemetry
 
-## 💻 System Requirements
+## System Requirements
 
-### ✅ Minimum Requirements
+### Minimum Requirements
 - **OS**: Ubuntu 20.04+ or compatible Linux distribution
 - **GPU**: NVIDIA GPU with 8GB+ VRAM
 - **RAM**: 16GB system memory
 - **Storage**: 100GB free space
 - **Docker**: Will be installed automatically if not present
 
-### 🚀 Recommended Configuration
+### Recommended Configuration
 - **OS**: Ubuntu 22.04 LTS  
 - **GPU**: NVIDIA RTX 3090/4090 or better (RTX 4000 series preferred)
 - **RAM**: 32GB+ system memory
 - **Storage**: 500GB+ NVMe SSD
 - **Network**: Stable internet connection for model downloads
 
-## 🚀 Quick Start
+## Quick Start
 
 ```bash
 # Clone the repository
@@ -68,7 +68,7 @@ sudo ./setup.sh
 
 **After installation, access your AI Box at:** `http://0.0.0.0:8085`
 
-## 🎯 Service Access Points
+## Service Access Points
 
 | Service | URL | Purpose |
 |---------|-----|---------|
@@ -81,7 +81,7 @@ sudo ./setup.sh
 | **n8n** | `http://0.0.0.0:5678` | Workflow automation |
 | **Whisper** | `http://0.0.0.0:9000` | Speech-to-text API |
 
-## 📊 Dashboard Features
+## Dashboard Features
 
 The modern AI Box Dashboard provides:
 
@@ -92,9 +92,9 @@ The modern AI Box Dashboard provides:
 - **System information** - CUDA version, driver info, hardware details
 - **Network-agnostic** - Works on any IP address/network configuration
 
-## ⚙️ Configuration
+## Configuration
 
-### 🔧 Main Configuration
+### Main Configuration
 Edit `config/deployment.conf` to customize:
 ```bash
 # Installation paths
@@ -110,7 +110,7 @@ LOCALAI_GPUS="0,1"
 FORGE_GPUS="0,1"
 ```
 
-### 🐳 Docker Management
+### Docker Management
 ```bash
 # View all services
 docker ps
@@ -126,7 +126,7 @@ docker restart ollama
 nvidia-smi
 ```
 
-## 🛡️ Security Features
+## Security Features
 
 - **Command injection protection** - Safe subprocess execution
 - **Input validation** - Proper parsing of user inputs
@@ -134,9 +134,9 @@ nvidia-smi
 - **Network segmentation** - Services communicate through ai-network
 - **API authentication** - Configurable access controls per service
 
-## 🔧 Advanced Usage
+## Advanced Usage
 
-### 🎛️ GPU Management
+### GPU Management
 ```bash
 # Monitor GPU usage
 watch nvidia-smi
@@ -150,7 +150,7 @@ export FORGE_GPUS="1"
 docker-compose up -d
 ```
 
-### 📦 Model Management
+### Model Management
 ```bash
 # Download models for Ollama
 docker exec ollama ollama pull llama3.1:8b
@@ -162,9 +162,9 @@ cp your-model.safetensors /opt/ai-box/models/stable-diffusion/
 /opt/ai-box/models/localai/
 ```
 
-## 🔍 Troubleshooting
+## Troubleshooting
 
-### 🚫 Common Issues
+### Common Issues
 
 **GPU not detected:**
 ```bash
@@ -172,7 +172,7 @@ cp your-model.safetensors /opt/ai-box/models/stable-diffusion/
 nvidia-smi
 
 # Verify container toolkit
-docker run --rm --gpus all nvidia/cuda:12.6-base-ubuntu22.04 nvidia-smi
+docker run --rm --gpus all nvidia/cuda:12.9-base-ubuntu22.04 nvidia-smi
 ```
 
 **Dashboard not accessible:**
@@ -199,7 +199,7 @@ docker logs [service-name]
 nvidia-smi
 ```
 
-### 📋 Diagnostic Commands
+### Diagnostic Commands
 ```bash
 # System health check
 ./scripts/check-status.sh
@@ -212,9 +212,9 @@ docker system df
 docker system prune  # Clean up if needed
 ```
 
-## 🏗️ Technical Architecture
+## Technical Architecture
 
-### 🐳 Container Stack
+### Container Stack
 ```
 ┌─────────────────────────────────────┐
 │          AI Box Dashboard           │ Port 8085
@@ -228,15 +228,15 @@ docker system prune  # Clean up if needed
 └─────────────────────────────────────┘
             Docker ai-network
          NVIDIA Container Toolkit
-              CUDA 12.6+
+              CUDA 12.9+
 ```
 
-### 🔗 Network Architecture
+### Network Architecture
 - **ai-network**: Internal Docker bridge network for service communication
 - **Host networking**: Dashboard and GPU server for external access
 - **Dynamic IPs**: No hardcoded addresses - works on any network
 
-### 💾 Data Management
+### Data Management
 ```
 /opt/ai-box/
 ├── models/           # Shared model storage
@@ -247,7 +247,7 @@ docker system prune  # Clean up if needed
 └── config/          # Configuration files
 ```
 
-## 🤝 Contributing
+## Contributing
 
 We welcome contributions! The codebase follows modern practices:
 
@@ -258,11 +258,11 @@ We welcome contributions! The codebase follows modern practices:
 
 See [technical documentation](docs/technical-details.md) for detailed information.
 
-## 📄 License
+## License
 
 MIT License - see [LICENSE](LICENSE) file for details.
 
-## 🙏 Acknowledgments
+## Acknowledgments
 
 - **NVIDIA** - GPU acceleration and CUDA toolkit
 - **Docker** - Containerization platform  
@@ -270,9 +270,9 @@ MIT License - see [LICENSE](LICENSE) file for details.
 
 ---
 
-**🔗 Quick Links:**
-- 📖 [Detailed Documentation](docs/technical-details.md)
-- 🐛 [Issue Tracker](https://github.com/ben-spanswick/AI-Deployment-Automation/issues)  
-- 💬 [Discussions](https://github.com/ben-spanswick/AI-Deployment-Automation/discussions)
+**Quick Links:**
+- [Detailed Documentation](docs/technical-details.md)
+- [Issue Tracker](https://github.com/ben-spanswick/AI-Deployment-Automation/issues)  
+- [Discussions](https://github.com/ben-spanswick/AI-Deployment-Automation/discussions)
 
-**⚡ Ready to deploy AI services in minutes? Run `sudo ./setup.sh` and get started!**
+**Ready to deploy AI services in minutes? Run `sudo ./setup.sh` and get started!**

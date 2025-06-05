@@ -7,11 +7,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [2.1.0] - 2025-06-04
 
-### 🎯 Major Codebase Consolidation Release
+### Major Codebase Consolidation Release
 
 This release represents a complete codebase consolidation and production hardening effort, transforming the project from a development workspace into a clean, maintainable, production-ready platform.
 
-### ✨ Added
+### Added
 - **New directory structure** with logical organization
   - `src/` - Core application code
   - `docs/` - Technical documentation
@@ -22,14 +22,14 @@ This release represents a complete codebase consolidation and production hardeni
 - **Info-focused dashboard UI** with service documentation modals
 - **Service-specific guides** for model management and API usage
 
-### 🔄 Changed
+### Changed
 - **Reorganized file structure** for better maintainability
 - **Updated all file references** to match new structure
 - **Improved documentation** with clear separation of concerns
 - **Enhanced dashboard interface** - replaced control buttons with informative help system
 - **Streamlined configuration** with clean config directory
 
-### 🗑️ Removed
+### Removed
 - **Large CUDA package** (3GB) - now downloaded during setup
 - **30+ redundant files** including:
   - Multiple dashboard versions (`dashboard-v2.py`, `dashboard-backend.py`, etc.)
@@ -40,7 +40,7 @@ This release represents a complete codebase consolidation and production hardeni
 - **Debug and temporary scripts** no longer needed for production
 - **Hidden state files** from config directory
 
-### 🏗️ File Structure Changes
+### File Structure Changes
 ```
 Before: 80+ files, 5.9GB (including 3GB CUDA package)
 After:  52 files, ~100MB clean codebase
@@ -55,21 +55,21 @@ New Structure:
 └── ansible/       # Deployment automation
 ```
 
-### 🔒 Production Hardening
+### Production Hardening
 - **Removed all debug artifacts** and temporary files
 - **Cleaned up logging** and removed development print statements
 - **Standardized configuration** management
 - **Improved error handling** throughout codebase
 - **Enhanced security** with proper input validation
 
-### 📊 Impact
+### Impact
 - **Repository size reduced** from 5.9GB to ~100MB (98% reduction)
 - **File count reduced** by ~35% (better maintainability)
 - **Clear separation** of development vs production code
 - **Improved documentation** structure and accessibility
 - **Enhanced user experience** with informative dashboard
 
-### 🔗 Migration Notes
+### Migration Notes
 If you're upgrading from a previous version:
 1. Dashboard Dockerfile moved: `dashboard-final.Dockerfile` → `src/dashboard.Dockerfile`
 2. Documentation moved: `details.md` → `docs/technical-details.md`
@@ -81,7 +81,7 @@ If you're upgrading from a previous version:
 
 ## [2.0.0] - 2025-06-03
 
-### 🚀 Complete Platform Rewrite
+### Complete Platform Rewrite
 
 Major refactoring and feature enhancement release.
 
@@ -104,7 +104,7 @@ Major refactoring and feature enhancement release.
 
 ## [1.0.0] - 2025-06-02
 
-### 🎉 Initial Release
+### Initial Release
 
 First stable release of AI Box platform.
 

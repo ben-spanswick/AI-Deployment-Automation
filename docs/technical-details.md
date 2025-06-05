@@ -1,4 +1,4 @@
-# 📚 AI Box - Comprehensive Technical Documentation
+# AI Box - Comprehensive Technical Documentation
 
 ## Table of Contents
 1. [Architecture Overview](#architecture-overview)
@@ -18,14 +18,14 @@
 
 ## Architecture Overview
 
-### 🏗️ System Design Philosophy
+### System Design Philosophy
 AI Box follows a **containerized microservices architecture** with these core principles:
 - **Service isolation** - Each AI service runs in its own container
 - **Resource efficiency** - Shared GPU access with configurable allocation
 - **Network agnostic** - Dynamic IP configuration for any deployment
 - **Production ready** - Proper error handling, logging, and monitoring
 
-### 🐳 Container Architecture
+### Container Architecture
 ```
 ┌─────────────────────────────────────────────────────────┐
 │                 AI Box Dashboard (Port 8085)           │
@@ -42,11 +42,11 @@ AI Box follows a **containerized microservices architecture** with these core pr
 └─────────────────────────────────────────────────────────┘
                     Docker ai-network Bridge
                  NVIDIA Container Toolkit Runtime
-                       CUDA 12.6+ Drivers
+                       CUDA 12.9+ Drivers
                       Host GPU Hardware
 ```
 
-### 🔗 Communication Patterns
+###  Communication Patterns
 - **Frontend ↔ Backend**: HTTP REST API calls to dashboard endpoints
 - **Container ↔ Container**: Docker internal DNS resolution via ai-network
 - **Dashboard ↔ GPU**: Dedicated GPU metrics server on localhost:9999
@@ -56,7 +56,7 @@ AI Box follows a **containerized microservices architecture** with these core pr
 
 ## Dashboard System
 
-### 🎮 Modern Web Dashboard
+###  Modern Web Dashboard
 The AI Box Dashboard is a **unified control panel** built with modern web technologies:
 
 **Frontend Components:**
@@ -84,7 +84,7 @@ GET /api/check-service/ollama → Ollama API status
 POST /api/services/{name}/{action} → start/stop/restart
 ```
 
-### 🔧 Technical Implementation
+###  Technical Implementation
 - **Security**: Command injection protection with safe subprocess execution
 - **Performance**: Bulk Docker stats collection (single command vs 14 individual calls)
 - **Caching**: Smart TTL-based caching (2s for services, 5s for GPU metrics)
@@ -95,7 +95,7 @@ POST /api/services/{name}/{action} → start/stop/restart
 
 ## Service Details
 
-### 🤖 Language Models (LLMs)
+###  Language Models (LLMs)
 
 #### LocalAI (Port 8080)
 **Purpose**: OpenAI-compatible API for local LLM inference
@@ -122,7 +122,7 @@ docker exec ollama ollama pull llama3.1:8b
 docker exec ollama ollama run llama3.1:8b "Tell me about AI"
 ```
 
-### 🎨 Image Generation
+###  Image Generation
 
 #### Stable Diffusion Forge (Port 7860)
 **Purpose**: Optimized Stable Diffusion WebUI with advanced features
@@ -145,7 +145,7 @@ docker exec ollama ollama run llama3.1:8b "Tell me about AI"
 **Workflow Features**: Custom nodes, model chaining, batch processing
 **Advantages**: Memory efficient, extensible, programmatic workflows
 
-### 🗄️ Infrastructure Services
+###  Infrastructure Services
 
 #### ChromaDB (Port 8000)
 **Purpose**: Vector database for RAG applications and embeddings
@@ -172,7 +172,7 @@ docker exec ollama ollama run llama3.1:8b "Tell me about AI"
 
 ## GPU Management
 
-### 🎯 GPU Architecture
+###  GPU Architecture
 AI Box implements a **sophisticated GPU monitoring and allocation system**:
 
 **GPU Metrics Server** (Port 9999):
@@ -200,7 +200,7 @@ deploy:
           capabilities: [gpu]
 ```
 
-### 📊 GPU Monitoring Implementation
+###  GPU Monitoring Implementation
 ```python
 # GPU server provides real-time metrics
 {
@@ -219,18 +219,18 @@ deploy:
 }
 ```
 
-### 🔧 CUDA Version Management
+###  CUDA Version Management
 **System Strategy**: 
-- **Primary CUDA**: Latest stable (12.6+) for new services
+- **Primary CUDA**: Latest stable (12.9+) for new services
 - **Legacy Support**: CUDA 12.1 compatibility for Stable Diffusion Forge
-- **Driver Requirements**: NVIDIA Driver 550+ with CUDA 12.6 support
+- **Driver Requirements**: NVIDIA Driver 550+ with CUDA 12.9 support
 - **Container Images**: Service-specific CUDA versions as needed
 
 ---
 
 ## Installation Deep Dive
 
-### 🚀 Automated Installation Flow
+###  Automated Installation Flow
 The `setup.sh` script implements a **comprehensive deployment pipeline**:
 
 ```bash
@@ -267,7 +267,7 @@ The `setup.sh` script implements a **comprehensive deployment pipeline**:
    - Final system validation
 ```
 
-### 🔧 Configuration Management
+###  Configuration Management
 **Deployment Configuration** (`config/deployment.conf`):
 ```bash
 # Core settings
@@ -294,7 +294,7 @@ SHARED_GPU_ACCESS=true
 
 ## Network Configuration
 
-### 🌐 Network-Agnostic Design
+###  Network-Agnostic Design
 AI Box is designed to work on **any network configuration** without hardcoded IP addresses:
 
 **Dynamic IP Resolution**:
@@ -323,7 +323,7 @@ networks:
 - **Services**: Host port X → Container port X (direct mapping)
 - **Internal**: Service-to-service communication via Docker DNS
 
-### 🔒 Security Network Design
+###  Security Network Design
 - **Service Isolation**: Each service runs in isolated container namespace
 - **Internal Communication**: Services communicate via ai-network bridge
 - **External Access**: Only necessary ports exposed to host network
@@ -333,7 +333,7 @@ networks:
 
 ## Security Implementation
 
-### 🛡️ Defense-in-Depth Strategy
+###  Defense-in-Depth Strategy
 
 **1. Command Injection Protection**:
 ```python
@@ -374,7 +374,7 @@ def run_cmd(cmd, timeout=5):
 
 ## Performance Optimization
 
-### ⚡ System Performance Strategy
+###  System Performance Strategy
 
 **1. Dashboard Optimization**:
 ```python
@@ -431,7 +431,7 @@ curl http://localhost:8085/api/dashboard | jq '.services[].stats'
 
 ## Troubleshooting Guide
 
-### 🔍 Diagnostic Commands
+###  Diagnostic Commands
 
 **System Health Check**:
 ```bash
@@ -440,7 +440,7 @@ curl http://localhost:8085/api/dashboard | jq '.services[].stats'
 
 # GPU diagnostics
 nvidia-smi
-docker run --rm --gpus all nvidia/cuda:12.6-base-ubuntu22.04 nvidia-smi
+docker run --rm --gpus all nvidia/cuda:12.9-base-ubuntu22.04 nvidia-smi
 
 # Container status
 docker ps -a
@@ -511,7 +511,7 @@ docker restart forge
 
 ## Development Notes
 
-### 🛠️ Development Environment Setup
+###  Development Environment Setup
 
 **Local Development**:
 ```bash
@@ -546,7 +546,7 @@ python3 -m pytest tests/test_integration.py
 ab -n 1000 -c 10 http://localhost:8085/api/dashboard
 ```
 
-### 🔄 Continuous Integration
+###  Continuous Integration
 **Automated Testing Pipeline**:
 1. **Code Quality**: Linting with flake8, security scanning with bandit
 2. **Unit Testing**: Individual function testing with pytest
@@ -558,7 +558,7 @@ ab -n 1000 -c 10 http://localhost:8085/api/dashboard
 
 ## Known Issues & Workarounds
 
-### ⚠️ Current Limitations
+###  Current Limitations
 
 **1. CUDA Version Compatibility**
 - **Issue**: Some services require specific CUDA versions (SD Forge prefers 12.1)
@@ -580,7 +580,7 @@ ab -n 1000 -c 10 http://localhost:8085/api/dashboard
 - **Workaround**: Docker Compose health checks and restart policies
 - **Monitoring**: Dashboard service status indicators
 
-### 🔧 Planned Improvements
+###  Planned Improvements
 
 **Short Term (v2.1)**:
 - [ ] Frontend/backend separation for better maintainability
