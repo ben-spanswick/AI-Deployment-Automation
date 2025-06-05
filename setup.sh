@@ -1,7 +1,7 @@
 #!/bin/bash
 # AI Box - Unified GPU-Accelerated AI Services Platform
 # setup.sh - Dynamic service deployment and management
-# Version: 2.0.0
+# Version: 2.1.0
 
 set -euo pipefail
 
@@ -176,7 +176,7 @@ SERVICE_VOLUMES["dashboard"]="nginx/html:/usr/share/nginx/html:ro;nginx/nginx.co
 SERVICE_ENV["dashboard"]=""
 SERVICE_REQUIRES["dashboard"]=""
 
-# Functions
+# Display Functions (overriding the logging functions for colored output)
 log() { echo -e "${BLUE}[INFO]${NC} $1"; }
 error() { echo -e "${RED}[ERROR]${NC} $1" >&2; }
 success() { echo -e "${GREEN}[SUCCESS]${NC} $1"; }
@@ -187,7 +187,7 @@ print_banner() {
     clear
     echo -e "${CYAN}${BOLD}"
     echo "╔════════════════════════════════════════════╗"
-    echo "║        AI Box Modular Setup v2.0           ║"
+    echo "║        AI Box Modular Setup v2.1           ║"
     echo "║     Dynamic Service Management System       ║"
     echo "╚════════════════════════════════════════════╝"
     echo -e "${NC}"
@@ -396,7 +396,7 @@ check_system_requirements() {
     install_nvidia_drivers_if_needed
     
     # Check NVIDIA Container Toolkit
-    if ! run_as_user docker run --rm --gpus all nvidia/cuda:11.8.0-base-ubuntu22.04 nvidia-smi &> /dev/null; then
+    if ! run_as_user docker run --rm --gpus all nvidia/cuda:12.9-base-ubuntu22.04 nvidia-smi &> /dev/null; then
         warn "NVIDIA Container Toolkit test failed - this may be normal on fresh install"
         # Don't exit on fresh install or if NVIDIA drivers were just installed
         if [[ -z "${DOCKER_FRESH_INSTALL:-}" ]] && [[ -z "${NVIDIA_FRESH_INSTALL:-}" ]]; then
